@@ -1,0 +1,13 @@
+{
+  "network": "amoy",
+  "chainId": 80002,
+  "deployer": "0x6d30492c8B55657fc0e6D7F40aB53bbDE22Acc77",
+  "timestamp": "2026-03-01T16:17:51.045Z",
+  "contracts": {
+    "KYCRegistry": "0x2dE4C3A566BEDA145c300C39104D2CD596F0a343",
+    "TokenDeployer": "0x21357C7b9872be9CB7498248752F7a235Cf35B3b",
+    "SupportDeployer": "0xD99Af9D9caDEe0c0C9C445C54959ceFec1460820",
+    "PropertyFactory": "0xF0799A6272ed0B7C0596Dd75324DEaECbCfe3a0c",
+    "USDC": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582"
+  }
+}

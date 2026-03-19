@@ -1,0 +1,36 @@
+{
+  "name": "rwa-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for RWA tokenization platform",
+  "scripts": {
+    "test": "hardhat test",
+    "coverage": "hardhat coverage",
+    "compile": "hardhat compile",
+    "deploy:testnet": "hardhat run scripts/deploy.js --network amoy",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network polygon"
+  },
+  "dependencies": {
+    "@cofhe/hardhat-plugin": "^0.4.0",
+    "@cofhe/sdk": "^0.4.0",
+    "@fhenixprotocol/cofhe-contracts": "^0.1.0",
+    "@onchain-id/solidity": "^2.1.0",
+    "@openzeppelin/contracts": "^4.9.3",
+    "@openzeppelin/contracts-upgradeable": "^4.9.3",
+    "@tokenysolutions/t-rex": "^4.1.2"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.1.2",
+    "@nomicfoundation/hardhat-ethers": "^3.1.3",
+    "@nomicfoundation/hardhat-network-helpers": "^1.1.2",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.1.3",
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.1.0",
+    "chai": "^4.5.0",
+    "ethers": "^6.16.0",
+    "hardhat": "^2.19.4",
+    "hardhat-gas-reporter": "^1.0.9",
+    "solidity-coverage": "^0.8.5",
+    "typechain": "^8.3.2"
+  }
+}

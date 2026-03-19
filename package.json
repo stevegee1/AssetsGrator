@@ -1,0 +1,40 @@
+{
+  "name": "rwa-tokenization-platform",
+  "version": "1.0.0",
+  "description": "Real World Asset tokenization platform for fractional real estate ownership",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "contracts",
+      "backend",
+      "frontend"
+    ],
+    "nohoist": [
+      "**/contracts/@cofhe",
+      "**/contracts/@cofhe/**"
+    ]
+  },
+  "scripts": {
+    "contracts:test": "cd contracts && npm test",
+    "contracts:deploy:testnet": "cd contracts && npm run deploy:testnet",
+    "contracts:deploy:mainnet": "cd contracts && npm run deploy:mainnet",
+    "backend:dev": "cd backend && npm run dev",
+    "backend:test": "cd backend && npm test",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "install:all": "npm install && cd contracts && npm install && cd ../backend && npm install && cd ../frontend && npm install"
+  },
+  "keywords": [
+    "real-estate",
+    "tokenization",
+    "polygon",
+    "web3",
+    "rwa"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

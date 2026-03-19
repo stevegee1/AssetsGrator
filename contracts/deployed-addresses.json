@@ -1,0 +1,15 @@
+{
+  "network": "amoy",
+  "deployedAt": "2026-03-10T17:36:00.000Z",
+  "deployer": "0x6d30492c8B55657fc0e6D7F40aB53bbDE22Acc77",
+  "ClaimTopicsRegistry": "0x6b82A3c6Ee7105a5a7025813B495F247830cD2A3",
+  "TrustedIssuersRegistry": "0xb05A96a4cc1eBa654a3687852655c044C2ddA756",
+  "IdentityRegistryStorage": "0xE341fdd836caE67DeE2B519b07DE0aBEb3C3f875",
+  "IdentityRegistry": "0x0B47038aD91Ae237f28899a8fC89D53e4Dd53Ea9",
+  "ComplianceImplementation": "0x96ce0D4706c1bCb34AEC5782d48Aeb82C5308d2B",
+  "KYCComplianceModule": "0xbCfA160D9B1Db2390Eb88a76C32B1298655B4162",
+  "PropertyTokenImplementation": "0xB3F65DA721f72186Dca0617DDeD0CB1ab4C1fF37",
+  "PropertyFactory": "0xAD0c595D27FdACc28462c2F30e121Dcd64e8EF9B",
+  "PropertyMarketplace": "0x167C5d0167D38dACdF6c2eD4e960E402bb4ADe67",
+  "PropertyRegistry": "0x00E769bBC6960C82fF6d0836f642331B6A58b79D"
+}
