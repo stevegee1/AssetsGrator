@@ -1,100 +1,104 @@
-"use client";
+'use client';
 
 /**
  * useDashboard — aggregate on-chain data for the investor dashboard.
  *
- * Reads for each property the connected wallet has tokens in:
- *  - PropertyFactory: getAllProperties() → list of token addresses
- *  - PropertyFactory: getTreasury(token) → treasury address per token
- *  - PropertyToken: balanceOf(wallet), pricePerUnit(), propertyMetadata()
- *  - PropertyTreasury: quoteRedemption(units) → claimable USDC estimate
- *  - IdentityRegistry: isVerified(wallet) → KYC status
- *
- * All numbers are BigInt from the chain. Formatting is done in the component.
+ * Reads for each AssetToken the connected wallet holds:
+ *   - AssetFactory.getAllAssets() → list of token addresses
+ *   - AssetFactory.assetTreasury(token) → treasury per token
+ *   - AssetToken.balanceOf(wallet), pricePerUnit(), assetMetadata()
+ *   - AssetTreasury.claimableRevenue(wallet) → claimable USDC
+ *   - IdentityRegistry.isVerified(wallet) → KYC status
  */
 
-import { useAccount, useReadContract, useReadContracts } from "wagmi";
-import { useChainId } from "wagmi";
-import { ADDRESSES } from "@/lib/contracts/addresses";
+import { useAccount, useReadContract, useReadContracts } from 'wagmi';
+import { useContractAddresses } from '@/lib/contracts/addresses';
 import {
-  PROPERTY_FACTORY_ABI,
-  PROPERTY_TOKEN_ABI,
-  PROPERTY_TREASURY_ABI,
-  GET_TREASURY_ABI,
-  IDENTITY_REGISTRY_ABI,
-} from "@/lib/contracts/abis";
+  ASSET_FACTORY_ABI,
+  ASSET_TOKEN_ABI,
+} from '@/lib/contracts/abis';
 
-function useAddresses() {
-  const chainId = useChainId();
-  return chainId === 80001 || chainId === 80002
-    ? ADDRESSES.mumbai
-    : ADDRESSES.polygon;
-}
+// Minimal treasury ABI for reading claimable USDC
+const TREASURY_READ_ABI = [
+  {
+    name: 'claimableRevenue',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'investor', type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+  },
+] as const;
 
-/** Single property holding for the dashboard */
-export interface PropertyHolding {
+// Minimal Identity Registry ABI
+const IDENTITY_REGISTRY_READ_ABI = [
+  {
+    name: 'isVerified',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'userAddress', type: 'address' }],
+    outputs: [{ type: 'bool' }],
+  },
+] as const;
+
+export interface AssetHolding {
   tokenAddress: `0x${string}`;
   treasuryAddress: `0x${string}` | undefined;
   name: string;
   symbol: string;
   location: string;
   ipfsCID: string;
-  balance: bigint; // raw base tokens (1 unit = 1e18)
-  units: bigint; // balance / 1e18
-  pricePerUnit: bigint; // 18-decimal USD
-  currentValueUsdc: bigint; // units * pricePerUnit / 1e12 → 6-decimal USDC
-  claimableUsdc: bigint; // from quoteRedemption — 6-decimal USDC
+  category: number;
+  balance: bigint;        // raw (1 unit = 1e18 base tokens)
+  units: bigint;          // balance / 1e18
+  pricePerUnit: bigint;   // 18-decimal USD
+  currentValueUsd: bigint;// units * pricePerUnit / 1e18 → USD (18-decimal)
+  claimableUsdc: bigint;  // 6-decimal USDC from treasury
+  annualYieldBps: bigint;
 }
 
 export function useDashboard() {
   const { address: wallet } = useAccount();
-  const addresses = useAddresses();
+  const { ASSET_FACTORY, IDENTITY_REGISTRY } = useContractAddresses();
 
-  // ── 1. Get all deployed property tokens ──────────────────────────────────
-  const { data: allProperties, isLoading: loadingProperties } = useReadContract(
-    {
-      address: addresses.PROPERTY_FACTORY,
-      abi: PROPERTY_FACTORY_ABI,
-      functionName: "getAllProperties",
-      query: { enabled: !!addresses.PROPERTY_FACTORY },
-    },
-  );
+  // ── 1. Get all deployed asset tokens ──────────────────────────────────────
+  const { data: allAssets, isLoading: loadingAssets } = useReadContract({
+    address: ASSET_FACTORY,
+    abi: ASSET_FACTORY_ABI,
+    functionName: 'getAllAssets',
+  });
+  const assets = (allAssets ?? []) as `0x${string}`[];
 
-  const properties = (allProperties ?? []) as `0x${string}`[];
-
-  // ── 2. KYC status ─────────────────────────────────────────────────────────
+  // ── 2. KYC status from IdentityRegistry ───────────────────────────────────
   const { data: isKYCVerified, isLoading: loadingKYC } = useReadContract({
-    address: addresses.IDENTITY_REGISTRY,
-    abi: IDENTITY_REGISTRY_ABI,
-    functionName: "isVerified",
+    address: IDENTITY_REGISTRY,
+    abi: IDENTITY_REGISTRY_READ_ABI,
+    functionName: 'isVerified',
     args: wallet ? [wallet] : undefined,
-    query: { enabled: !!wallet && !!addresses.IDENTITY_REGISTRY },
+    query: { enabled: !!wallet },
   });
 
-  // ── 3. Batch: get balance + price + metadata for each property ────────────
-  const tokenCalls = properties.flatMap((token) => [
+  // ── 3. Batch: balance + pricePerUnit + metadata + treasury per token ───────
+  const tokenCalls = assets.flatMap((token) => [
     {
       address: token,
-      abi: PROPERTY_TOKEN_ABI,
-      functionName: "balanceOf" as const,
-      args: [wallet ?? "0x0000000000000000000000000000000000000000"] as [
-        `0x${string}`,
-      ],
+      abi: ASSET_TOKEN_ABI,
+      functionName: 'balanceOf' as const,
+      args: [wallet ?? '0x0000000000000000000000000000000000000000'] as [`0x${string}`],
     },
     {
       address: token,
-      abi: PROPERTY_TOKEN_ABI,
-      functionName: "pricePerUnit" as const,
+      abi: ASSET_TOKEN_ABI,
+      functionName: 'pricePerUnit' as const,
     },
     {
       address: token,
-      abi: PROPERTY_TOKEN_ABI,
-      functionName: "propertyMetadata" as const,
+      abi: ASSET_TOKEN_ABI,
+      functionName: 'assetMetadata' as const,
     },
     {
-      address: addresses.PROPERTY_FACTORY,
-      abi: GET_TREASURY_ABI,
-      functionName: "getTreasury" as const,
+      address: ASSET_FACTORY,
+      abi: ASSET_FACTORY_ABI,
+      functionName: 'assetTreasury' as const,
       args: [token] as [`0x${string}`],
     },
   ]);
@@ -102,39 +106,26 @@ export function useDashboard() {
   const { data: tokenResults, isLoading: loadingTokens } = useReadContracts({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     contracts: tokenCalls as any[],
-    query: { enabled: properties.length > 0 && !!wallet },
+    query: { enabled: assets.length > 0 && !!wallet },
   });
 
-  // ── 4. For each property with a balance, get quoteRedemption ─────────────
-  // Build holdings from batch results first
-  const partialHoldings: Array<{
-    tokenAddress: `0x${string}`;
-    treasuryAddress: `0x${string}` | undefined;
-    balance: bigint;
-    units: bigint;
-    pricePerUnit: bigint;
-    currentValueUsdc: bigint;
-    name: string;
-    symbol: string;
-    location: string;
-    ipfsCID: string;
-  }> = [];
+  // ── 4. Build partial holdings (filter to balances > 0) ───────────────────
+  type PartialHolding = Omit<AssetHolding, 'claimableUsdc'>;
+  const partialHoldings: PartialHolding[] = [];
 
-  if (tokenResults && properties.length > 0) {
-    properties.forEach((token, i) => {
+  if (tokenResults && assets.length > 0) {
+    assets.forEach((token, i) => {
       const base = i * 4;
       const balance = (tokenResults[base]?.result ?? 0n) as bigint;
-      const pricePerUnit = (tokenResults[base + 1]?.result ?? 0n) as bigint;
-      const meta = tokenResults[base + 2]?.result as any;
-      const treasury = tokenResults[base + 3]?.result as
-        | `0x${string}`
-        | undefined;
+      if (balance === 0n) return;
 
-      if (balance === 0n) return; // skip properties user doesn't hold
+      const pricePerUnit = (tokenResults[base + 1]?.result ?? 0n) as bigint;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const meta = tokenResults[base + 2]?.result as any;
+      const treasury = tokenResults[base + 3]?.result as `0x${string}` | undefined;
 
       const units = balance / BigInt(1e18);
-      // pricePerUnit is 18-decimal USD, convert to 6-decimal USDC
-      const currentValueUsdc = (units * pricePerUnit) / BigInt(1e12);
+      const currentValueUsd = (units * pricePerUnit); // both 18-decimal
 
       partialHoldings.push({
         tokenAddress: token,
@@ -142,57 +133,54 @@ export function useDashboard() {
         balance,
         units,
         pricePerUnit,
-        currentValueUsdc,
-        name: meta?.name ?? "Unknown Property",
-        symbol: meta?.symbol ?? "???",
-        location: meta?.location ?? "",
-        ipfsCID: meta?.ipfsCID ?? "",
+        currentValueUsd,
+        name: meta?.name ?? 'Unknown Asset',
+        symbol: meta?.symbol ?? '???',
+        location: meta?.location ?? '',
+        ipfsCID: meta?.ipfsCID ?? '',
+        category: meta?.category ?? 0,
+        annualYieldBps: meta?.annualYieldBps ?? 0n,
       });
     });
   }
 
-  // ── 5. Batch quoteRedemption for held properties ──────────────────────────
-  const redemptionCalls = partialHoldings
+  // ── 5. Batch claimableRevenue for all held assets ─────────────────────────
+  const revenueCalls = partialHoldings
     .filter((h) => h.treasuryAddress && h.units > 0n)
     .map((h) => ({
       address: h.treasuryAddress!,
-      abi: PROPERTY_TREASURY_ABI,
-      functionName: "quoteRedemption" as const,
-      args: [h.units] as [bigint],
+      abi: TREASURY_READ_ABI,
+      functionName: 'claimableRevenue' as const,
+      args: [wallet!] as [`0x${string}`],
     }));
 
-  const { data: redemptionResults, isLoading: loadingRedemptions } =
-    useReadContracts({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      contracts: redemptionCalls as any[],
-      query: { enabled: redemptionCalls.length > 0 },
-    });
+  const { data: revenueResults, isLoading: loadingRevenue } = useReadContracts({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contracts: revenueCalls as any[],
+    query: { enabled: revenueCalls.length > 0 && !!wallet },
+  });
 
   // ── 6. Merge claimable USDC into final holdings ───────────────────────────
-  let redemptionIdx = 0;
-  const holdings: PropertyHolding[] = partialHoldings.map((h) => {
+  let ri = 0;
+  const holdings: AssetHolding[] = partialHoldings.map((h) => {
     let claimableUsdc = 0n;
-    if (h.treasuryAddress && h.units > 0n && redemptionResults) {
-      const result = redemptionResults[redemptionIdx]?.result as
-        | [bigint, bigint, bigint]
-        | undefined;
-      if (result) claimableUsdc = result[2]; // netUsdc
-      redemptionIdx++;
+    if (h.treasuryAddress && h.units > 0n && revenueResults) {
+      claimableUsdc = (revenueResults[ri]?.result as bigint) ?? 0n;
+      ri++;
     }
     return { ...h, claimableUsdc };
   });
 
   // ── 7. Aggregate totals ───────────────────────────────────────────────────
-  const totalValueUsdc = holdings.reduce((s, h) => s + h.currentValueUsdc, 0n);
+  const totalValueUsd = holdings.reduce((s, h) => s + h.currentValueUsd, 0n);
   const totalClaimable = holdings.reduce((s, h) => s + h.claimableUsdc, 0n);
 
   return {
     holdings,
-    totalValueUsdc,
+    totalValueUsd,
     totalClaimable,
-    isKYCVerified: isKYCVerified ?? false,
-    isLoading:
-      loadingProperties || loadingKYC || loadingTokens || loadingRedemptions,
+    isKYCVerified: (isKYCVerified as boolean) ?? false,
+    isLoading: loadingAssets || loadingKYC || loadingTokens || loadingRevenue,
     walletConnected: !!wallet,
   };
 }

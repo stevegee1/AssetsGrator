@@ -45,12 +45,13 @@ describe("FHE Contracts — Real Encryption Tests", function () {
     before(async () => {
       const Factory = await hre.ethers.getContractFactory("FHEFeeManager");
 
-      // Encrypt initial fee rates
-      const [encPlatform, encMaintenance, encExit] = await cofheClient
+      // Encrypt all four fee rates
+      const [encPlatform, encMaintenance, encExit, encMarketplace] = await cofheClient
         .encryptInputs([
-          Encryptable.uint32(200n),  // 2% platform
-          Encryptable.uint32(100n),  // 1% maintenance
-          Encryptable.uint32(150n),  // 1.5% exit
+          Encryptable.uint32(200n),  // 2%   platform revenue
+          Encryptable.uint32(100n),  // 1%   maintenance reserve
+          Encryptable.uint32(150n),  // 1.5% exit fee
+          Encryptable.uint32(100n),  // 1%   marketplace commission
         ])
         .execute();
 
@@ -58,9 +59,11 @@ describe("FHE Contracts — Real Encryption Tests", function () {
         encPlatform,
         encMaintenance,
         encExit,
+        encMarketplace,
         500,   // maxPlatformRevenueBps
         300,   // maxMaintenanceReserveBps
         500,   // maxExitFeeBps
+        500,   // maxMarketplaceBps
         owner.address
       );
       await feeManager.waitForDeployment();
@@ -90,11 +93,8 @@ describe("FHE Contracts — Real Encryption Tests", function () {
     });
 
     it("owner can update fee rate and it is re-encrypted to new value", async function () {
-      const [encNewBps] = await cofheClient
-        .encryptInputs([Encryptable.uint32(300n)]) // 3%
-        .execute();
-
-      await (await feeManager.updatePlatformRevenueBps(encNewBps)).wait();
+      // updatePlatformRevenueBps takes a plaintext uint256 and wraps it via FHE.asEuint32
+      await (await feeManager.updatePlatformRevenueBps(300n)).wait();
 
       const handle    = await feeManager.encryptedPlatformRevenueBps();
       const decrypted = await cofheClient

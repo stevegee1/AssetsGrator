@@ -22,7 +22,9 @@ interface IFHEAssetValuation {
 }
 
 interface IFHEFeeManager {
-    function computePlatformCutFromHandle(euint64 grossAmount) external returns (euint64);
+    // Synchronous Revelation Bridge: fee rate is sourced from the encrypted
+    // private cache. The result is a plaintext uint256, which is then re-encrypted.
+    function computePlatformCutPlaintext(uint256 grossAmount) external view returns (uint256);
 }
 
 /// @notice Minimal interface for interacting with AssetToken as ERC-20 collateral.
@@ -221,6 +223,7 @@ contract ConfidentialLoan is Ownable, ReentrancyGuard {
     ///
     /// @param collateralAsset   AssetToken (ERC-3643) contract address
     /// @param collateralAmount  Number of AssetToken shares to pledge
+    /// @param grossLoanAmount   Plaintext USDC gross amount (for fee bridge computation)
     /// @param encLoanAmount     Encrypted USDC gross loan amount
     /// @param encRateBps        Encrypted annual interest rate in basis points
     /// @param encLtvBps         Encrypted maximum LTV ratio in basis points
@@ -228,6 +231,7 @@ contract ConfidentialLoan is Ownable, ReentrancyGuard {
     function originateLoan(
         address   collateralAsset,
         uint256   collateralAmount,
+        uint256   grossLoanAmount,
         InEuint64 calldata encLoanAmount,
         InEuint32 calldata encRateBps,
         InEuint64 calldata encLtvBps,
@@ -259,22 +263,17 @@ contract ConfidentialLoan is Ownable, ReentrancyGuard {
         FHE.allow(encLtv,    msg.sender);
         FHE.allow(encLtv,    owner());
 
-        // ── Compute encrypted fee and net disbursement ────────────────────────
-        // Grant FeeManager access to encAmount so it can use it as input in
-        // FHE.mul(gross, bps) inside computePlatformCutFromHandle.
-        // MockTaskManager validates acl.isAllowed(encAmount, feeManager) on each
-        // encrypted input before executing the computation.
-        FHE.allow(encAmount, address(feeManager));
-
-        euint64 encFee = feeManager.computePlatformCutFromHandle(encAmount);
+        // ── Compute fee via Synchronous Bridge ────────────────────────────────
+        // Fee rate is private (from encrypted cache). Gross amount is known to
+        // the borrower. The result — netAmount — remains fully encrypted.
+        uint256 feePlain  = feeManager.computePlatformCutPlaintext(grossLoanAmount);
+        euint64 encFee    = FHE.asEuint64(feePlain);
         FHE.allowThis(encFee);
 
         euint64 encNet = FHE.sub(encAmount, encFee);
         FHE.allowThis(encNet);
         FHE.allow(encNet, msg.sender);
         FHE.allow(encNet, owner());
-        // Register encNet for async decryption so the threshold network signer
-        // can call publishDecryptResult in step 2
         FHE.decrypt(encNet);
 
         // Outstanding debt = full gross loan amount

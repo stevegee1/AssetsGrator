@@ -1,15 +1,15 @@
 'use client';
 
 import { useState, use } from 'react';
-import { useReadContract, useChainId, useAccount } from 'wagmi';
+import { useReadContract, useChainId, useAccount, useSwitchChain } from 'wagmi';
 import { formatUnits } from 'viem';
-import { MapPin, ExternalLink, Loader, AlertCircle, Coins } from 'lucide-react';
-import { PROPERTY_TOKEN_ABI, MARKETPLACE_ABI } from '@/lib/contracts/abis';
-import { ADDRESSES } from '@/lib/contracts/addresses';
-import { useBuyFromIssuance } from '@/lib/hooks/useMarketplace';
-import { useKYCStatus } from '@/lib/hooks/usePropertyFactory';
+import { MapPin, ExternalLink, Loader, AlertCircle } from 'lucide-react';
+import { arbitrumSepolia } from 'wagmi/chains';
+import { ASSET_TOKEN_ABI } from '@/lib/contracts/abis';
+import { usePurchaseListing } from '@/lib/hooks/useMarketplace';
+import { useKYCStatus } from '@/lib/hooks/useFHEKYC';
 
-const PROP_TYPE_LABELS = ['Residential', 'Commercial', 'Industrial', 'Land', 'Mixed-Use'];
+const CATEGORY_LABELS = ['Real Estate', 'Land', 'Renewable Energy', 'Infrastructure', 'Commodities', 'Other'];
 const STATUS_LABELS    = ['Pending', 'Active', 'Paused', 'Closed'];
 const STATUS_BADGE     = ['badge-yellow', 'badge-green', 'badge-yellow', 'badge-red'];
 
@@ -20,83 +20,87 @@ function fmtUSD(raw: bigint, decimals = 18) {
   return `$${n.toFixed(2)}`;
 }
 
-export default function PropertyDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function AssetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tokenAddress } = use(params);
   const addr = tokenAddress as `0x${string}`;
 
-  const chainId   = useChainId();
-  const addresses = chainId === 80002 ? ADDRESSES.mumbai : ADDRESSES.polygon;
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
   const { address: wallet } = useAccount();
+  const isWrongChain = chainId !== arbitrumSepolia.id;
 
   const [units, setUnits] = useState('');
-  const [tab, setTab] = useState<'overview' | 'docs'>('overview');
+  const [tab, setTab]     = useState<'overview' | 'docs'>('overview');
 
-  // ── On-chain reads ────────────────────────────────────────────────
+  // ── On-chain reads ────────────────────────────────────────────────────────
   const { data: meta, isLoading } = useReadContract({
     address: addr,
-    abi: PROPERTY_TOKEN_ABI,
-    functionName: 'propertyMetadata',
-    chainId: 80002,
+    abi: ASSET_TOKEN_ABI,
+    functionName: 'assetMetadata',
+    chainId: arbitrumSepolia.id,
   });
 
   const { data: statusRaw } = useReadContract({
     address: addr,
-    abi: PROPERTY_TOKEN_ABI,
-    functionName: 'propertyStatus',
-    chainId: 80002,
+    abi: ASSET_TOKEN_ABI,
+    functionName: 'assetStatus',
+    chainId: arbitrumSepolia.id,
   });
 
-  const { data: totalSupply } = useReadContract({
+  const { data: supply } = useReadContract({
     address: addr,
-    abi: PROPERTY_TOKEN_ABI,
+    abi: ASSET_TOKEN_ABI,
     functionName: 'totalSupply',
-    chainId: 80002,
+    chainId: arbitrumSepolia.id,
   });
 
-  const { data: availableUnits } = useReadContract({
+  const { data: available } = useReadContract({
     address: addr,
-    abi: PROPERTY_TOKEN_ABI,
+    abi: ASSET_TOKEN_ABI,
     functionName: 'availableUnits',
-    chainId: 80002,
+    chainId: arbitrumSepolia.id,
   });
 
   const { data: balance } = useReadContract({
     address: addr,
-    abi: PROPERTY_TOKEN_ABI,
+    abi: ASSET_TOKEN_ABI,
     functionName: 'balanceOf',
     args: wallet ? [wallet] : undefined,
-    chainId: 80002,
+    chainId: arbitrumSepolia.id,
     query: { enabled: !!wallet },
   });
 
-  const { isVerified } = useKYCStatus();
-  const { buy, isPending, isConfirming, isSuccess } = useBuyFromIssuance();
+  const { status: kycStatus } = useKYCStatus();
+  const isVerified = kycStatus === 'approved';
+  const { isPending, isConfirming, isSuccess } = usePurchaseListing();
 
   if (isLoading || !meta) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 10, color: 'var(--text-secondary)' }}>
         <Loader size={20} style={{ animation: 'spin 1s linear infinite' }} />
-        <span>Loading property…</span>
+        <span>Loading asset…</span>
       </div>
     );
   }
 
   const status    = typeof statusRaw === 'number' ? statusRaw : 0;
-  const badgeCls  = STATUS_BADGE[status]  ?? 'badge-yellow';
-  const statusLbl = STATUS_LABELS[status] ?? 'Unknown';
-  const typeLbl   = PROP_TYPE_LABELS[meta.propType] ?? 'Property';
+  const badgeCls  = STATUS_BADGE[status]       ?? 'badge-yellow';
+  const statusLbl = STATUS_LABELS[status]      ?? 'Unknown';
+  const categoryLbl = CATEGORY_LABELS[meta.category] ?? 'Asset';
   const isActive  = status === 1;
+  const totalSupply = supply as bigint ?? 0n;
+  const avail      = available as bigint ?? 0n;
 
-  const sold = totalSupply && availableUnits ? totalSupply - availableUnits : 0n;
-  const pct  = totalSupply && totalSupply > 0n
+  const sold = totalSupply > 0n ? totalSupply - avail : 0n;
+  const pct  = totalSupply > 0n
     ? Math.min(100, Math.round(Number((sold * 10000n) / totalSupply) / 100))
     : 0;
 
-  const unitsN   = parseFloat(units) || 0;
-  const priceN   = Number(formatUnits(meta.pricePerUnit, 18));
-  const totalCost = unitsN * priceN;
-  const supplyN   = Number(formatUnits(totalSupply ?? 0n, 18));
-  const ownershipPct = supplyN > 0 ? ((unitsN / supplyN) * 100).toFixed(4) : '0';
+  const unitsN        = parseFloat(units) || 0;
+  const priceN        = Number(formatUnits(meta.pricePerUnit, 18));
+  const totalCost     = unitsN * priceN;
+  const supplyN       = Number(formatUnits(totalSupply, 18));
+  const ownershipPct  = supplyN > 0 ? ((unitsN / supplyN) * 100).toFixed(4) : '0';
 
   const imageUrl = meta.ipfsCID
     ? `https://gateway.pinata.cloud/ipfs/${meta.ipfsCID}`
@@ -104,10 +108,9 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
 
   const handleBuy = () => {
     if (!wallet || unitsN < 1) return;
-    // pricePerUnit is 18-decimal USD; parse units as whole tokens
-    const unitsBig = BigInt(Math.floor(unitsN));
-    const maticValue = BigInt(Math.ceil(totalCost * 1e18)); // simplified: assumes 1 MATIC = $1 on testnet
-    buy(addr, unitsBig, maticValue);
+    // For marketplace purchase — requires listing ID. Using primary issuance hook.
+    console.log('Buy requested:', addr, unitsN);
+    // TODO: wire to actual listing ID from marketplace in M2
   };
 
   return (
@@ -121,7 +124,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
         <div className="container" style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)' }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <span className={`badge ${badgeCls}`}>{statusLbl}</span>
-            <span className="badge badge-blue">{typeLbl}</span>
+            <span className="badge badge-blue">{categoryLbl}</span>
           </div>
           <h1 style={{ fontSize: '1.8rem', color: '#fff' }}>{meta.name}</h1>
           <p style={{ color: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
@@ -134,12 +137,20 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
       <div className="container layout-sidebar" style={{ padding: '1.5rem 1.25rem' }}>
         {/* Left */}
         <div>
-          {/* Key stats */}
+          {/* Wrong chain banner */}
+          {isWrongChain && (
+            <div style={{ background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>⚠️ Switch to Arbitrum Sepolia to interact.</span>
+              <button className="btn btn-sm" style={{ background: '#f59e0b', color: '#fff', border: 'none' }} onClick={() => switchChain({ chainId: arbitrumSepolia.id })}>Switch</button>
+            </div>
+          )}
+
+          {/* Stats */}
           <div className="card" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '1rem' }}>
             {[
-              { label: 'Property Value', value: fmtUSD(meta.valuationUSD) },
-              { label: 'Price / Token',  value: `$${priceN.toFixed(2)}` },
-              { label: 'Your Balance',   value: balance ? formatUnits(balance, 18) : '—' },
+              { label: 'Asset Value',   value: fmtUSD(meta.valuationUSD) },
+              { label: 'Price / Token', value: `$${priceN.toFixed(2)}` },
+              { label: 'Your Balance',  value: balance ? formatUnits(balance as bigint, 18) : '—' },
             ].map((s, i) => (
               <div key={i} className="stat-box" style={{ borderRight: i < 2 ? '1px solid var(--border)' : undefined }}>
                 <div className="stat-label">{s.label}</div>
@@ -153,7 +164,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
               <span style={{ fontWeight: 700 }}>{pct}% Sold</span>
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                {availableUnits ? formatUnits(availableUnits, 18) : '—'} tokens remaining
+                {formatUnits(avail, 18)} tokens remaining
               </span>
             </div>
             <div className="progress-bar" style={{ height: 10 }}>
@@ -179,20 +190,21 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
                 <table>
                   <tbody>
                     {[
-                      ['Token Name',   meta.name],
-                      ['Symbol',       meta.symbol],
-                      ['Property Type', typeLbl],
-                      ['Total Supply',  totalSupply ? formatUnits(totalSupply, 18) + ' tokens' : '—'],
-                      ['Available',     availableUnits ? formatUnits(availableUnits, 18) + ' tokens' : '—'],
+                      ['Token Name',    meta.name],
+                      ['Symbol',        meta.symbol],
+                      ['Category',      categoryLbl],
+                      ['Sub-Type',      meta.assetSubType || '—'],
+                      ['Total Supply',  formatUnits(totalSupply, 18) + ' tokens'],
+                      ['Available',     formatUnits(avail, 18) + ' tokens'],
                       ['Token Standard','ERC-3643 (T-REX)'],
-                      ['Blockchain',   'Polygon Amoy'],
+                      ['Blockchain',   'Arbitrum Sepolia'],
                     ].map(([k, v]) => (
                       <tr key={k}><td style={{ color: 'var(--text-secondary)', width: '40%' }}>{k}</td><td style={{ fontWeight: 600 }}>{v}</td></tr>
                     ))}
                     <tr>
                       <td style={{ color: 'var(--text-secondary)' }}>Token Contract</td>
                       <td>
-                        <a href={`https://amoy.polygonscan.com/address/${addr}`} target="_blank" rel="noopener noreferrer"
+                        <a href={`https://sepolia.arbiscan.io/address/${addr}`} target="_blank" rel="noopener noreferrer"
                           style={{ color: 'var(--brand)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
                           {addr.slice(0, 10)}…{addr.slice(-6)} <ExternalLink size={12} />
                         </a>
@@ -217,6 +229,17 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
                   ) : (
                     <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>No IPFS metadata attached to this token.</p>
                   )}
+                  {meta.ppaContractCID && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--bg)', borderRadius: 8, marginTop: 8 }}>
+                      <div>
+                        <p style={{ fontWeight: 600, fontSize: 14 }}>PPA Contract</p>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{meta.ppaContractCID}</p>
+                      </div>
+                      <a href={`https://gateway.pinata.cloud/ipfs/${meta.ppaContractCID}`} target="_blank" rel="noopener noreferrer">
+                        <button className="btn btn-outline btn-sm">View <ExternalLink size={12} /></button>
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -228,7 +251,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
           <div className="card" style={{ borderRadius: 10 }}>
             <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border)' }}>
               <h2 style={{ fontSize: 17, marginBottom: 4 }}>Buy Tokens</h2>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>ERC-3643 · KYC required</p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>ERC-3643 · KYC required · USDC</p>
             </div>
             <div style={{ padding: '1.25rem' }}>
               <label>Number of Tokens</label>
@@ -238,7 +261,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
               {unitsN > 0 && (
                 <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '0.75rem', marginBottom: 12, fontSize: 13 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Cost (USD est.)</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Cost (USDC)</span>
                     <span style={{ fontWeight: 700 }}>${totalCost.toFixed(2)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -254,16 +277,20 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               )}
 
-              {isActive ? (
+              {isWrongChain ? (
+                <button className="btn btn-outline-red" style={{ width: '100%' }} onClick={() => switchChain({ chainId: arbitrumSepolia.id })}>
+                  ⚠️ Switch to Arbitrum Sepolia
+                </button>
+              ) : isActive ? (
                 <>
                   <button className="btn btn-primary" style={{ width: '100%', marginBottom: 8 }}
                     disabled={!wallet || !isVerified || unitsN < 1 || isPending || isConfirming}
                     onClick={handleBuy}>
-                    {!wallet ? 'Connect Wallet' :
-                     !isVerified ? 'KYC Not Verified' :
-                     isPending ? 'Confirm in wallet…' :
+                    {!wallet      ? 'Connect Wallet' :
+                     !isVerified  ? 'KYC Not Verified' :
+                     isPending    ? 'Confirm in wallet…' :
                      isConfirming ? 'Confirming…' :
-                     `Buy ${unitsN || '—'} tokens`}
+                     `Buy ${unitsN || '—'} tokens (USDC)`}
                   </button>
                   {wallet && !isVerified && (
                     <div style={{ display: 'flex', gap: 6, fontSize: 12, color: 'var(--text-secondary)', alignItems: 'flex-start' }}>

@@ -1,26 +1,25 @@
 'use client';
 
 /**
- * CreatePropertyForm — Two-phase property creation
+ * CreatePropertyForm — Two-phase asset creation on AssetsGrator
  *
  * Phase 1 (Metadata):
- *   Admin fills property details + uploads ownership docs, images, videos
+ *   Admin fills asset details + uploads docs, images
  *   → files uploaded to IPFS via Pinata API route
- *   → metadata JSON assembled and pinned
- *   → ipfs:// URI generated automatically
+ *   → metadata JSON assembled and pinned → ipfsCID generated
  *
  * Phase 2 (On-chain):
- *   Admin fills token economics (price, supply, etc.)
- *   → single PropertyFactory.deployProperty(DeployParams) tx
- *   → PropertyToken + ModularCompliance clones deployed, wired together
+ *   Admin fills token economics
+ *   → single AssetFactory.deployAsset(DeployParams) tx
+ *   → AssetToken + AssetTreasury clones deployed on Arbitrum Sepolia
  */
 
 import { useState, useRef } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt, useChainId, useAccount } from 'wagmi';
-import { parseUnits } from 'viem';
+import { parseUnits, parseGwei } from 'viem';
 import { Upload, CheckCircle, Loader, X, FileText, Image, Video, ArrowRight } from 'lucide-react';
-import { PROPERTY_FACTORY_ABI } from '@/lib/contracts/abis';
-import { ADDRESSES } from '@/lib/contracts/addresses';
+import { ASSET_FACTORY_ABI } from '@/lib/contracts/abis';
+import { useContractAddresses } from '@/lib/contracts/addresses';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type UploadedFile = { name: string; ipfsUrl: string; gatewayUrl: string; type: 'doc' | 'image' | 'video' };
@@ -144,7 +143,7 @@ function MetadataPhase({ onComplete }: { onComplete: (uri: string, name: string)
   const submit = async () => {
     setError('');
     if (!form.propertyName || !form.propertyAddress || !form.city || !form.country) {
-      setError('Property Name, Address, City, and Country are required.'); return;
+      setError('Asset Name, Address, City, and Country are required.'); return;
     }
     if (docs.length === 0) { setError('At least one ownership document is required.'); return; }
 
@@ -193,10 +192,10 @@ function MetadataPhase({ onComplete }: { onComplete: (uri: string, name: string)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div className="card" style={{ padding: '1.25rem' }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>📍 Property Details</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>📍 Asset Details</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
           <div style={{ gridColumn: '1/-1' }}>
-            <label>Property Name / Title <span style={{ color: 'var(--red)' }}>*</span></label>
+            <label>Asset Name / Title <span style={{ color: 'var(--red)' }}>*</span></label>
             <input id="meta-name" placeholder="e.g. Victoria Heights, Unit 4B" value={form.propertyName} onChange={set('propertyName')} />
           </div>
           <div style={{ gridColumn: '1/-1' }}>
@@ -212,7 +211,7 @@ function MetadataPhase({ onComplete }: { onComplete: (uri: string, name: string)
             <input id="meta-country" placeholder="Nigeria" value={form.country} onChange={set('country')} />
           </div>
           <div>
-            <label>Property Type</label>
+            <label>Asset Category</label>
             <select value={form.propertyType} onChange={set('propertyType')} style={{ padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', width: '100%' }}>
               {['Residential', 'Commercial', 'Industrial', 'Land', 'Mixed-Use'].map(t => <option key={t}>{t}</option>)}
             </select>
@@ -235,7 +234,7 @@ function MetadataPhase({ onComplete }: { onComplete: (uri: string, name: string)
           </div>
           <div style={{ gridColumn: '1/-1' }}>
             <label>Description</label>
-            <textarea id="meta-desc" placeholder="Describe the property, its surroundings, investment potential…"
+            <textarea id="meta-desc" placeholder="Describe the asset, its location, investment potential…"
               value={form.description} onChange={set('description')}
               style={{ width: '100%', minHeight: 80, padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', resize: 'vertical', fontSize: 14 }} />
           </div>
@@ -249,7 +248,7 @@ function MetadataPhase({ onComplete }: { onComplete: (uri: string, name: string)
           <FileDropZone label="Ownership Documents (Title Deed, Survey, Legal) *" accept=".pdf,.doc,.docx"
             icon={FileText} uploading={uploadingDocs} uploaded={docs}
             onFiles={files => handleFiles(files, 'doc', setUploadingDocs, setDocs)} />
-          <FileDropZone label="Property Photos" accept="image/*"
+          <FileDropZone label="Asset Photos" accept="image/*"
             icon={Image} uploading={uploadingImages} uploaded={images}
             onFiles={files => handleFiles(files, 'image', setUploadingImages, setImages)} />
           <FileDropZone label="Videos / Virtual Tours (optional)" accept="video/*"
@@ -272,21 +271,21 @@ function MetadataPhase({ onComplete }: { onComplete: (uri: string, name: string)
 }
 
 // ── Phase 2: Token economics + on-chain ───────────────────────────────────────
-// PropertyType enum mirrors IPropertyToken.PropertyType (0-4)
-const PROP_TYPES = ['Residential', 'Commercial', 'Industrial', 'Land', 'Mixed-Use'] as const;
+// AssetCategory enum mirrors IAssetToken.AssetCategory (0=RealEstate, 1=Energy, 2=Carbon, 3=REC)
+const ASSET_CATEGORIES = ['Real Estate', 'Energy', 'Carbon', 'REC'] as const;
 
 function TokenPhase({ metadataUri, propertyName, onBack }: {
   metadataUri: string; propertyName: string; onBack: () => void;
 }) {
-  const chainId = useChainId();
   const { address } = useAccount();
-  const addrs = chainId === 80002 ? ADDRESSES.mumbai : ADDRESSES.polygon;
+  const { ASSET_FACTORY, IDENTITY_REGISTRY } = useContractAddresses();
 
   const [form, setForm] = useState<TokenForm>({
     ...EMPTY_TOKEN,
     tokenSymbol: propertyName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 5),
   });
-  const [propType, setPropType] = useState<number>(0); // index into PROP_TYPES
+  const [category, setCategory] = useState<number>(0); // index into ASSET_CATEGORIES
+  const [assetSubType, setAssetSubType] = useState('');
   const [location, setLocation] = useState('');
   const [error, setError] = useState('');
 
@@ -299,26 +298,35 @@ function TokenPhase({ metadataUri, propertyName, onBack }: {
   const submit = () => {
     setError('');
     if (!form.tokenSymbol || !form.valuationUSD) {
-      setError('Token Symbol and Property Valuation are required.'); return;
+      setError('Token Symbol and Asset Valuation are required.'); return;
     }
-
+    console.log("hey")
     // Strip the ipfs:// prefix — the contract stores just the CID
     const cid = metadataUri.replace('ipfs://', '');
 
     writeContract({
-      address: addrs.PROPERTY_FACTORY,
-      abi: PROPERTY_FACTORY_ABI,
-      functionName: 'deployProperty',
+      address: ASSET_FACTORY,
+      abi: ASSET_FACTORY_ABI,
+      functionName: 'deployAsset',
+      // Gas buffer: Arbitrum Sepolia base fee fluctuates around 0.01–0.025 gwei.
+      // Setting 0.1 gwei floor prevents "maxFeePerGas < baseFee" race condition.
+      maxFeePerGas: parseGwei('0.1'),
+      maxPriorityFeePerGas: parseGwei('0.001'),
       args: [{
         name:             propertyName,
         symbol:           form.tokenSymbol.toUpperCase(),
         ipfsCID:          cid,
         location:         location || propertyName,
-        propType:         propType,
-        totalSupply:      parseUnits(form.totalSupply, 0),    // whole token units
-        pricePerUnit:     parseUnits(form.pricePerUnit, 18),  // USD 18-decimal
-        valuationUSD:     parseUnits(form.valuationUSD, 18),  // USD 18-decimal
-        identityRegistry: '0x0000000000000000000000000000000000000000' as `0x${string}`, // use factory default
+        category:         category,
+        assetSubType:     assetSubType || ASSET_CATEGORIES[category],
+        totalSupply:      parseUnits(form.totalSupply, 0),
+        pricePerUnit:     parseUnits(form.pricePerUnit, 18),
+        valuationUSD:     parseUnits(form.valuationUSD, 18),
+        identityRegistry: IDENTITY_REGISTRY,
+        capacityKW:       0n,
+        annualYieldMWh:   0n,
+        ppaContractCID:   '',
+        ppaTermYears:     0n,
       }],
     });
   };
@@ -352,19 +360,19 @@ function TokenPhase({ metadataUri, propertyName, onBack }: {
             <input id="tok-price" type="number" step="0.01" value={form.pricePerUnit} onChange={set('pricePerUnit')} />
           </div>
           <div>
-            <label>Property Valuation (USD) <span style={{ color: 'var(--red)' }}>*</span></label>
+            <label>Asset Valuation (USD) <span style={{ color: 'var(--red)' }}>*</span></label>
             <input id="tok-value" type="number" placeholder="500000" value={form.valuationUSD} onChange={set('valuationUSD')} />
           </div>
           <div>
-            <label>Property Type</label>
-            <select value={propType} onChange={e => setPropType(Number(e.target.value))}
+            <label>Asset Category</label>
+            <select value={category} onChange={e => setCategory(Number(e.target.value))}
               style={{ padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', width: '100%' }}>
-              {PROP_TYPES.map((t, i) => <option key={t} value={i}>{t}</option>)}
+              {ASSET_CATEGORIES.map((t, i) => <option key={t} value={i}>{t}</option>)}
             </select>
           </div>
           <div>
-            <label>Location / City</label>
-            <input id="tok-location" placeholder="Lagos, Nigeria" value={location} onChange={e => setLocation(e.target.value)} />
+            <label>Asset Sub-Type</label>
+            <input id="tok-subtype" placeholder="e.g. Residential, Solar Farm" value={assetSubType} onChange={e => setAssetSubType(e.target.value)} />
           </div>
         </div>
 
@@ -373,7 +381,6 @@ function TokenPhase({ metadataUri, propertyName, onBack }: {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 12, padding: '0.75rem', background: 'var(--brand-light)', borderRadius: 8, fontSize: 12 }}>
             <div><div style={{ color: 'var(--text-secondary)' }}>Total Raise</div><strong>${(parseFloat(form.totalSupply) * parseFloat(form.pricePerUnit)).toLocaleString()}</strong></div>
             <div><div style={{ color: 'var(--text-secondary)' }}>Valuation</div><strong>${parseFloat(form.valuationUSD).toLocaleString()}</strong></div>
-            <div><div style={{ color: 'var(--text-secondary)' }}>Contracts</div><strong>2 deployed</strong></div>
           </div>
         )}
       </div>
@@ -386,7 +393,7 @@ function TokenPhase({ metadataUri, propertyName, onBack }: {
 
       {isSuccess && (
         <div style={{ background: 'var(--green-bg)', color: 'var(--green)', borderRadius: 8, padding: '0.85rem 1rem', fontSize: 14 }}>
-          🎉 Property created on-chain! Check the Properties tab.
+          🎉 Asset deployed on-chain! Check the Assets tab.
         </div>
       )}
 
@@ -394,11 +401,11 @@ function TokenPhase({ metadataUri, propertyName, onBack }: {
         <button className="btn btn-outline" onClick={onBack} disabled={busy} style={{ flex: '0 0 auto' }}>
           ← Back
         </button>
-        <button id="create-property-btn" className="btn btn-primary" style={{ flex: 1 }}
+        <button id="deploy-asset-btn" className="btn btn-primary" style={{ flex: 1 }}
           disabled={busy || !address || isSuccess} onClick={submit}>
           {!address ? 'Connect Wallet' : busy
             ? (isMining ? 'Deploying contracts… (30s)' : 'Confirm in wallet…')
-            : '🚀 Create Property (1 transaction)'}
+            : '🚀 Deploy Asset (1 transaction)'}
         </button>
       </div>
       {busy && <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>Deploying PropertyToken + ModularCompliance on-chain… (~20s)</p>}
@@ -422,7 +429,7 @@ export default function CreatePropertyForm() {
     <div>
       {/* Phase indicator */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-        {[{ n: 1, label: 'Property Details & Files' }, { n: 2, label: 'Token Economics & Deploy' }].map(({ n, label }) => (
+        {[{ n: 1, label: 'Asset Details & Files' }, { n: 2, label: 'Token Economics & Deploy' }].map(({ n, label }) => (
           <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{
               width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',

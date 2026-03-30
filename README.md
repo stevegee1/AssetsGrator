@@ -5,22 +5,22 @@
 > **Website:** [assetsgrator.com](https://www.assetsgrator.com/)
 > **Contact:** [help@assetsgrator.com](mailto:help@assetsgrator.com)
 > **Incorporated:** United Kingdom
-> **Stack:** ERC-3643 · Fhenix FHE · Solidity 0.8.25 · Hardhat · Helios Testnet
-
+> **Stack:** ERC-3643 · Fhenix CoFHE · Solidity 0.8.25 · Hardhat · Arbitrum Sepolia
 ---
 
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [Why Fhenix — Objectively](#why-fhenix--objectively)
-3. [The Architecture](#the-architecture)
-4. [Smart Contract Suite](#smart-contract-suite)
-5. [Test Coverage](#test-coverage)
-6. [Milestone 1 — Completed](#milestone-1--completed)
-7. [Milestone 2 — In Progress](#milestone-2--in-progress)
-8. [Milestone 3 — Roadmap](#milestone-3--roadmap)
-9. [Business & Regulatory Context](#business--regulatory-context)
-10. [Contact](#contact)
+3. [FHE Component Flow Diagrams](#fhe-component-flow-diagrams)
+4. [The Architecture](#the-architecture)
+5. [Smart Contract Suite](#smart-contract-suite)
+6. [Test Coverage](#test-coverage)
+7. [Milestone 1 — Completed](#milestone-1--completed)
+8. [Milestone 2 — Roadmap](#milestone-2--roadmap)
+9. [Milestone 3 — Roadmap](#milestone-3--roadmap)
+10. [Business & Regulatory Context](#business--regulatory-context)
+11. [Contact](#contact)
 
 ---
 
@@ -46,7 +46,7 @@ We have architected a platform where **regulatory compliance and investor confid
 
 Together, ERC-3643 ensures that **only verified, compliant investors can participate**, and FHE ensures that **their participation is never exposed to the market**. This is the combination that makes institutional adoption viable — and it is why AssetsGrator is built specifically on Fhenix.
 
-The platform's smart contracts are live on the **Fhenix Helios testnet**, with all core protocol logic tested and verified.
+The platform's smart contracts are live on **Arbitrum Sepolia** (the primary Fhenix CoFHE co-processor testnet), with all core protocol logic tested and verified.
 
 ### Why AssetsGrator Is a Category First
 
@@ -69,12 +69,8 @@ This three-way combination — structural compliance, investor confidentiality, 
 
 ## Why Fhenix — Objectively
 
-This is not a "we added FHE for the grant" project. The following workflows are **architecturally impossible** without on-chain FHE:
+The following workflows are **architecturally impossible** without on-chain FHE:
 
-### 1. Encrypted KYC / AML Compliance (`FHEKYCRegistry`)
-Traditional KYC means KYC data lives in a centralised database, or is hashed and worthless on-chain. With Fhenix, KYC attribute flags (`IS_ACCREDITED`, `AML_CLEARED`) are stored as encrypted booleans (`ebool`). The loan contract **evaluates compliance without knowing the investor's actual risk profile**. An institution can prove they are qualified without disclosing to the world _why_.
-
-### 2. Encrypted Loan Terms (`ConfidentialLoan`)
 ### 1. Encrypted KYC / AML Attributes (`FHEKYCRegistry`)
 
 **The problem:** KYC data in a centralised database creates a single point of breach and a GDPR liability. Hashed on-chain data is verifiable but computationally useless — you cannot evaluate compliance rules against a hash. Publishing KYC attributes in plaintext exposes investor profiling data to the entire world, which violates data protection law in the UK (UK GDPR), EU (GDPR), and most other jurisdictions we intend to operate in.
@@ -109,15 +105,309 @@ The liquidation trigger is an encrypted boolean — the market never learns the 
 
 **The problem:** If platform fee rates (revenue share, maintenance reserve, exit fee) are readable on-chain, every competitor can immediately replicate our exact commercial model. A fintech's fee schedule is a core business asset — equivalent to a term sheet or a pricing manual. Exposing it publicly destroys competitive advantage and invites undercutting before we've had the chance to establish market position. Additionally, fee structures may vary by jurisdiction or investor class; a single public rate visible to all parties contradicts the ability to offer differentiated pricing lawfully under different regulatory frameworks.
 
-**The effect:** Platform revenue basis points, maintenance reserve percentages, and exit fees are stored as `euint32` ciphertexts. All fee computation happens in FHE — `computePlatformCutFromHandle(encGrossAmount)` returns the fee as an encrypted value without revealing either the rate or the gross amount to observers. Only the net disbursement is ever published. This allows AssetsGrator to apply jurisdiction-specific or investor-class-specific fee schedules without any public disclosure, and to update rates without broadcasting the change to competitors.
+**The effect:** Platform revenue labels, maintenance reserve percentages, marketplace commissions, and exit fees are stored as `euint32` ciphertexts. To maintain the high-performance settlement required for modern RWA trading, AssetsGrator utilizes a **Synchronous Revelation Bridge**:
+- **Encrypted Construction**: Admin inputs are encrypted locally before deployment, ensuring no plaintext leakage in transaction history.
+- **One-Time Revelation**: The platform explicitly "reveals" the current active rates via the Fhenix co-processor, caching them for synchronous Solidity math.
+- **Atomic Settlement**: This allows `AssetMarketplace` and `AssetTreasury` to perform sub-second, multi-party fee splits in a single transaction, while keeping the underlying commercial governance 100% private during its lifecycle.
 
 ---
 
-### 5. Auditor-Scoped Decrypt Grants (`FHEAccessControl`)
-
-**The problem:** Regulators in different countries have different rights of access to financial data. A UK FCA supervisor, a UAE FSRA examiner, and a Nigerian SEC officer may each have a legitimate but distinct legal entitlement to inspect specific loan records. On a standard blockchain, granting one auditor access to a transaction exposes the entire ledger. On a centralised system, there is no cryptographic guarantee that the firm has not modified the records before disclosure.
-
 **The effect:** Fhenix FHE enables time-bounded, scoped decrypt permissions via `FHE.allow()`. An FCA examiner can be granted a 90-day window to decrypt the terms of a specific loan — and the smart contract enforces that the grant expires, is scoped to that loan only, and cannot be extended without a new on-chain action. The same architecture supports FSRA or SEC examiners with different scopes. Every access grant is itself an immutable on-chain audit trail — the firm cannot selectively disclose or modify what the regulator sees. This is the cryptographic equivalent of a regulated firm's statutory books — trusted, tamper-proof, and access-controlled.
+
+---
+
+### 6. Shadow Portfolio Sync (`FHEPortfolioRegistry`)
+
+**The problem:** Public blockchains reveal "Rich Lists," allowing competitors or malicious actors to scrape the exact holdings and net worth of institutional investors. While ERC-3643 ensures only KYC'd users hold tokens, it does not prevent their participation levels from being permanently public. Institutional investors require "Net Worth Privacy" to avoid being targeted and to keep their portfolio allocation strategies confidential.
+
+**The effect:** AssetsGrator implements a high-performance **Shadow Sync** pattern. Every plaintext transfer on the ERC-3643 compliance layer (Solidity 0.8.17) automatically triggers an encrypted balance synchronization in the Fhenix shadow registry (Solidity 0.8.25). This allows the platform to maintain a "Private Snapshot" of each investor's holdings. Total supply remains auditable and public, but individual shareholdings are 100% private, accessible only to the investor and their authorised auditors. This is the final piece of the "Institutional Privacy Stack," securing the participant as much as the asset.
+
+
+
+---
+
+## FHE Component Flow Diagrams
+
+Each diagram traces data from an actor's client-side input through encrypted on-chain storage and computation to the authorised output. No plaintext leaves the Fhenix CoFHE co-processor.
+
+---
+
+### 1. `FHEKYCRegistry` — Encrypted KYC / AML
+
+```
+ KYC Provider
+     │
+     ▼
+ ┌──────────────────────────────────────────┐
+ │  cofhe-sdk (client side)                 │
+ │  encryptInputs([IS_ACCREDITED, AML_CLR]) │
+ └──────────────┬───────────────────────────┘
+                │  encBool₁ 🔒  encBool₂ 🔒
+                ▼
+ ┌──────────────────────────────────────────┐
+ │  FHEKYCRegistry.batchSetKYCAttrs()       │
+ │  FHE.asEbool() × 2  ─  store ciphertext  │
+ │  FHE.allowThis()  +  FHE.allow(investor) │
+ └──────────────┬───────────────────────────┘
+                │
+                ▼
+         ╔══════════════╗
+         ║ ebool store  ║  ← never decrypted on public chain
+         ╚══════╤═══════╝
+                │
+     ┌──────────┴─────────────┐
+     │  Loan requests KYC     │
+     │  verification          │
+     └──────────┬─────────────┘
+                │
+                ▼
+ ┌──────────────────────────────────────────┐
+ │  FHE.and(IS_ACCREDITED, AML_CLEARED)     │
+ │  FHE.decrypt(result)                     │
+ │  ── async → Fhenix Threshold Network ──  │
+ └────────────┬─────────────────────────────┘
+              │
+        ◇ result == 1 ?
+       /               \
+     Yes               No
+      │                 │
+      ▼                 ▼
+  ✅ KYC verified   ❌ Loan blocked
+  Loan can proceed
+
+     ──── Auditor Scoped Access ────
+
+ Platform  ──→  FHE.allow(handle, auditor, expiresAt)
+                        │
+                        ▼
+              auditor.decryptForView(handle)
+                        │
+                        ▼
+               true / false   [scoped, expires]
+```
+
+---
+
+### 2. `ConfidentialLoan` — Encrypted Loan Lifecycle
+
+```
+ Borrower
+     │
+     ▼
+ ┌──────────────────────────────────────────┐
+ │  cofhe-sdk  encryptInputs(               │
+ │    loanAmt, rateBps, ltvBps )           │
+ └──────────────┬───────────────────────────┘
+                │  encAmt 🔒  encRate 🔒  encLtv 🔒
+                ▼
+ ┌──────────────────────────────────────────┐
+ │  ConfidentialLoan.originateLoan()        │
+ │   ◇ kycVerifiedFor[borrower]?            │
+ │     No  ──▶  revert                      │
+ │     Yes ──▶  FHE.asEuint64(encAmt)       │
+ │              store encrypted terms       │
+ └──────┬───────────────────┬───────────────┘
+        │                   │
+        ▼                   ▼
+ forcedTransfer       FHEFeeManager
+ borrower → Loan      .computePlatformCut
+ collateral 🔒         Plaintext(gross)   ← Synchronous Bridge
+                             │
+                       feePlain (uint256)
+                             │
+                       FHE.asEuint64(fee)
+                             │
+                       FHE.sub(encAmt, encFee)
+                             │  encNet 🔒
+                       FHE.decrypt(encNet)
+                       async → Threshold Network
+                             │
+                   ┌─────────┴──────────┐
+                   │ publishDisbursal    │
+                   │ Amount(sig)        │
+                   └─────────┬──────────┘
+                             │
+                   confirmDisbursal()
+                   Treasury ──▶ Borrower
+                         netUSDC 💰
+                             │
+                    ┌────────┴────────┐
+                    │  Loan ACTIVE    │
+                    └───┬─────────┬──┘
+                        │         │
+               Borrower repays   LTV breach check
+                        │         │  (FHE.gt — no leak)
+                   repayLoan()    ▼
+                      🔒      confirmLiquidation()
+                        │     Collateral → Treasury 🚨
+                   REPAID        LIQUIDATED
+
+     ──── Auditor Access ────
+
+ FHE.allow(encAmt, auditor, expiresAt)
+ auditor.decryptForView(encAmt)  [time-bounded]
+```
+
+---
+
+### 3. `FHEAssetValuation` — Encrypted Asset Valuation
+
+```
+ Licensed Valuator
+     │
+     ▼
+ ┌──────────────────────────────────────────┐
+ │  cofhe-sdk  encryptInputs([£15,000,000]) │
+ └──────────────┬───────────────────────────┘
+                │  encVal euint64 🔒
+                ▼
+ ┌──────────────────────────────────────────┐
+ │  FHEAssetValuation.registerAsset()       │
+ │  FHE.asEuint64(encVal)                   │
+ │  FHE.allowThis()  +  FHE.allow(owner)   │
+ └──────────────┬───────────────────────────┘
+                │
+                ▼
+         ╔══════════════╗
+         ║ euint64 store║  ← no public appraisal leak
+         ╚══════╤═══════╝
+                │
+     ┌──────────┴────────────────────┐
+     │  ConfidentialLoan  LTV check  │
+     └──────────┬────────────────────┘
+                │
+                ▼
+ ┌──────────────────────────────────────────┐
+ │  collatVal = encTotalVal × shares/supply │
+ │  curLTV    = encDebt × 10000 / collatVal │
+ │  breach    = FHE.gt(curLTV, encMaxLtv)  │
+ │  ── all computed inside FHE ──           │
+ │  FHE.decrypt(breach)  async              │
+ └────────────┬─────────────────────────────┘
+              │
+        ◇ breach == true ?
+       /               \
+     Yes               No
+      │                 │
+      ▼                 ▼
+  confirmLiquidation  Loan stays ACTIVE
+  Collateral seized 🚨
+
+     ──── Auditor Access ────
+
+ grantValuationAccess(asset, auditor, expiresAt)
+ auditor.decryptForView(encTotalVal)
+         │
+         ▼
+  £15,000,000  [scoped, expires, immutable grant trail]
+```
+
+---
+
+### 4. `FHEFeeManager` — Synchronous Revelation Bridge
+
+```
+ ┌──────────────────────────────────────────────────────┐
+ │  PHASE 1 — Encrypted Construction                    │
+ │                                                      │
+ │  Admin  ──▶  cofhe-sdk.encryptInputs(                │
+ │                platformBps, maintenanceBps,          │
+ │                exitBps, marketplaceBps )             │
+ │          encP 🔒  encM 🔒  encE 🔒  encMkt 🔒        │
+ │                │                                     │
+ │                ▼                                     │
+ │  FHEFeeManager.deploy(encP, encM, encE, encMkt,...)  │
+ │  FHE.asEuint32() × 4  ←  store as ciphertext        │
+ │  FHE.allowThis() × 4  +  FHE.allow(owner) × 4      │
+ └──────────────────────────────────────────────────────┘
+                │
+                ▼
+ ┌──────────────────────────────────────────────────────┐
+ │  PHASE 2 — One-Time Revelation  (admin triggers)     │
+ │                                                      │
+ │  requestRevelation()                                 │
+ │  FHE.decrypt × 4  ──▶  Fhenix Threshold Network     │
+ │                                                      │
+ │  revealRate(Platform,    200, sig) ──▶ cache = 200  │
+ │  revealRate(Maintenance, 100, sig) ──▶ cache = 100  │
+ │  revealRate(Exit,        150, sig) ──▶ cache = 150  │
+ │  revealRate(Marketplace, 100, sig) ──▶ cache = 100  │
+ └──────────────────────────────────────────────────────┘
+                │
+                ▼
+ ┌──────────────────────────────────────────────────────┐
+ │  PHASE 3 — Synchronous Settlement  (every trade)    │
+ │                                                      │
+ │  AssetTreasury / Marketplace calls:                  │
+ │                                                      │
+ │  computePlatformCutPlaintext(gross)                  │
+ │    ──▶  gross × _pPlatformBps / 10000               │
+ │         single SLOAD — no FHE overhead              │
+ │                                                      │
+ │  computeMaintenanceCutPlaintext(gross)               │
+ │  computeExitFeePlaintext(gross)                      │
+ │  computeMarketplaceFeePlaintext(gross)               │
+ │                                                      │
+ │  All four splits in one atomic tx  💰                │
+ └──────────────────────────────────────────────────────┘
+
+     ── Rate Update (optional) ──
+
+ Admin ──▶ updatePlatformRevenueBps(newBps)
+           FHE.asEuint32(newBps)
+           FHE.allow(handle, owner)
+           _pPlatformBps = newBps  ← cache synced immediately
+```
+
+---
+
+### 5. `FHEPortfolioRegistry` — Shadow Portfolio Sync
+
+```
+ AssetFactory
+     │
+     ▼  deploys with portfolioRegistry wired
+ ┌──────────────────────────────────────────┐
+ │  AssetToken  (ERC-3643, Solidity 0.8.17) │
+ │  holds reference to FHEPortfolioRegistry │
+ └──────┬───────────────┬──────────────┬────┘
+        │               │              │
+      _mint()       _transfer()     _burn()
+        │               │              │
+        └───────────────┴──────────────┘
+                        │
+                 _syncPortfolio()
+                 [internal hook]
+                        │
+                        ▼
+ ┌──────────────────────────────────────────┐
+ │  FHEPortfolioRegistry.syncBalance(       │
+ │    investor, newBalance )                │
+ │                                          │
+ │  FHE.asEuint64(newBalance) 🔒            │
+ │  FHE.allowThis()                         │
+ │  FHE.allow(investor)                    │
+ └──────────────┬───────────────────────────┘
+                │
+                ▼
+         ╔═══════════════════════╗
+         ║  euint64 balance      ║
+         ║  per asset/investor   ║  ← shadow encrypted store
+         ╚═══════╤═══════════════╝
+                 │
+     ┌───────────┼────────────────┐
+     │           │                │
+  Investor    Auditor           Public
+     │           │                │
+     ▼           ▼                ▼
+ own handle  FHE.allow()     ACL blocks
+ decrypt ✅  scoped grant   ❌ no access
+             time-bounded
+             decrypt ✅
+
+  Public chain: totalSupply visible ✅
+  Individual holdings: 🔒 always encrypted
+```
 
 
 ---
@@ -144,6 +434,11 @@ The liquidation trigger is an encrypted boolean — the market never learns the 
 │  ┌──────────────┐    ┌─────────────────┐    ┌───────────────┐  │
 │  │FHEKYCRegistry│    │FHEAssetValuation│    │ FHEFeeManager │  │
 │  │ (ebool attrs)│    │ (euint64 apprais│    │(euint32 rates)│  │
+│  └──────┬───────┘    └────────┬────────┘    └──────┬────────┘  │
+│         │                     │                    │           │
+│  ┌──────▼───────┐    ┌────────▼────────┐    ┌──────▼────────┐  │
+│  │FHEPortfolioR.│    │ FHEAccessControl│    │ConfidentialLoa│  │
+│  │(euint64 bals)│    │ (Scoped Grants) │    │ (euint terms) │  │
 │  └──────────────┘    └─────────────────┘    └───────────────┘  │
 │                               │                                 │
 │  ┌────────────────────────────▼────────────────────────────┐   │
@@ -168,48 +463,6 @@ The liquidation trigger is an encrypted boolean — the market never learns the 
 │  └──────────────┘    └─────────────────┘    └───────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
-
----
-
-## Technical Challenges & How We Solved Them
-
-### Challenge 1 — ERC-3643 `forcedTransfer` Still Enforces Identity
-
-**Problem:** We assumed `forcedTransfer` fully bypasses compliance so the loan contract (not a KYC'd investor) could custody collateral. In practice, T-REX's `Token.sol` checks `identityRegistry.isVerified(_to)` even inside `forcedTransfer`. Every address — including smart contracts — that receives tokens must be registered.
-
-**Solution:** In the test fixture (and in production deployment), we register the `ConfidentialLoan` contract, the `AssetTreasury`, and the platform treasury wallet in the `IdentityRegistry`. For contracts that are not investors, a mock `onchainID` suffices — the compliance module only checks existence, not claim validity for agent-initiated transfers.
-
----
-
-### Challenge 2 — FHE ACL Ordering (`allowThis` before `allow`)
-
-**Problem:** Fhenix's `MockACL.allow(handle, account, requester)` requires `isAllowed(handle, requester)` to return true before it will grant access to `account`. Our `FHEFeeManager` was calling `FHE.allow(cut, msg.sender)` _before_ calling `FHE.allowThis(cut)` — meaning the FeeManager tried to grant access before it had access itself.
-
-**Solution:** Always call `FHE.allowThis(handle)` first to establish the contract's own permission, then call `FHE.allow(handle, recipient)`. Additionally, the calling contract (`ConfidentialLoan`) must explicitly grant the FeeManager access to any encrypted value it passes as an argument: `FHE.allow(encAmount, address(feeManager))` before calling `computePlatformCutFromHandle(encAmount)`.
-
----
-
-### Challenge 3 — EIP-191 vs Raw ECDSA in Mock Threshold Network
-
-**Problem:** Our test helper used `wallet.signMessage(msgHash)` to simulate the Fhenix Threshold Network's decrypt result signature. `wallet.signMessage()` prepends the EIP-191 prefix (`\x19Ethereum Signed Message:\n32`), but `MockTaskManager._verifyDecryptResult` uses raw `ECDSA.recover(keccak256(abi.encodePacked(ctHash, result)), signature)`. The recovered signer never matched → all `publishDisbursalAmount` calls reverted.
-
-**Solution:** Use `new ethers.SigningKey(key).sign(msgHash)` for raw signing: no prefix, matching the contract's verification exactly.
-
----
-
-### Challenge 4 — T-REX Proxy Initialisation Order
-
-**Problem:** `AssetFactory` deploys `AssetToken` clones that each need their own `IdentityRegistry` and `ModularCompliance` references set via `init()`. Deploying the Factory as a plain constructor (without an ERC1967 proxy) broke the ownership model — the factory's `initialize()` uses `__Ownable_init()` which only works in an upgradeable proxy context.
-
-**Solution:** Deploy all T-REX registry contracts calling `init()` on each (not constructors), then deploy `AssetFactory` implementation and wire it through an `ERC1967Proxy` passing encoded `initialize()` calldata. This mirrors the production T-REX deployment spec and unlocks upgradeable ownership.
-
----
-
-### Challenge 5 — Proportional LTV with FHE Division
-
-**Problem:** Classic LTV (`loanValue / collateralValue`) requires two encrypted `euint64` values to be divided. Fhenix FHE supports `FHE.div(a, b)` but both operands must be of the same type and security zone. Additionally, collateral value for fractional shares is proportional: `totalValuation × shares / totalSupply`, which mixes encrypted and plaintext values.
-
-**Solution:** We use `FHE.mul(encTotalVal, plainShares)` then `FHE.div(result, plainTotalSupply)` — mixing encrypted × plaintext is efficient and avoids an extra encrypted division. The LTV breach check becomes a single `FHE.gt(encCurrentLTV, encMaxLTV)` returning an `ebool` that the threshold network decrypts asynchronously.
 
 ---
 
@@ -247,131 +500,179 @@ The liquidation trigger is an encrypted boolean — the market never learns the 
 
 ## Test Coverage
 
-**Total: 62 tests passing across 3 suites** (run with `npx hardhat test`)
+**Total: 84 tests passing across 4 suites** (run with `npx hardhat test`)
 
 ### Suite 1 — `test/RWAPlatform.test.js` (Core Platform)
 
-Tests the full ERC-3643 asset lifecycle end-to-end:
+### Suite 2 — `test/FHEContracts.test.js` (FHE Privacy Layer)
 
-- ✅ Factory deployment with correct fee parameters
-- ✅ Asset token deployment with metadata validation
-- ✅ Token activation and unpausing lifecycle
-- ✅ KYC-gated transfer enforcement (verified vs unverified wallets)
-- ✅ Compliance module rejection of non-KYC transfers
-- ✅ `AssetTreasury` fee split (platform 2%, maintenance 1%, exit 1.5%)
-- ✅ Revenue deposit and pro-rata distribution to token holders
-- ✅ Marketplace listing, cancellation, and purchase flow
-- ✅ Country-level transfer restriction enforcement
-- ✅ AssetFactory admin functions and fee cap validation
+### Suite 3 — `test/ConfidentialLoan.test.js` (Full Lending Lifecycle)
+
+### Suite 4 — `test/PortfolioAndFeeBridge.test.js` (Portfolio & Fee Bridge)
+
+New suite added post-milestone — covers:
+- Shadow Sync triggers on mint, transfer, burn, and forcedTransfer
+- Asset-scoped registry isolation (multiple assets)
+- MockFHEFeeManagerV2 — marketplace commission, all fee types, update logic
+- AssetFactory V2 — portfolioRegistry and fheFeeManager wired correctly
+- AssetTreasury — revenue split via updated fee bridge
+
+- Factory deployment with correct fee parameters
+- Asset token deployment with metadata validation
+- Token activation and unpausing lifecycle
+- KYC-gated transfer enforcement (verified vs unverified wallets)
+- Compliance module rejection of non-KYC transfers
+- `AssetTreasury` fee split (platform 2%, maintenance 1%, exit 1.5%)
+-  Revenue deposit and pro-rata distribution to token holders
+-  Marketplace listing, cancellation, and purchase flow
+-  Country-level transfer restriction enforcement
+-  AssetFactory admin functions and fee cap validation
 
 ### Suite 2 — `test/FHEContracts.test.js` (FHE Privacy Layer)
 
 Unit-tests every FHE contract in isolation with mock encryption:
 
-- ✅ `FHEKYCRegistry` — authorised provider writes encrypted attributes
-- ✅ `FHEKYCRegistry` — unauthorised writes are blocked
-- ✅ `FHEKYCRegistry` — combined KYC eligibility check (`IS_ACCREDITED ∧ AML_CLEARED`)
-- ✅ `FHEAssetValuation` — encrypted valuation registration and retrieval
-- ✅ `FHEAssetValuation` — multi-asset valuation tracking
-- ✅ `FHEFeeManager` — encrypted platform / maintenance / exit fee computation
-- ✅ `FHEFeeManager` — fee update with ACL re-grant
-- ✅ `FHEFeeManager` — simulated full loan lifecycle (originate → disburse → repay)
+-  `FHEKYCRegistry` — authorised provider writes encrypted attributes
+-  `FHEKYCRegistry` — unauthorised writes are blocked
+-  `FHEKYCRegistry` — combined KYC eligibility check (`IS_ACCREDITED ∧ AML_CLEARED`)
+-  `FHEAssetValuation` — encrypted valuation registration and retrieval
+-  `FHEAssetValuation` — multi-asset valuation tracking
+-  `FHEFeeManager` — encrypted platform / maintenance / exit fee computation
+-  `FHEFeeManager` — fee update with ACL re-grant
+-  `FHEFeeManager` — simulated full loan lifecycle (originate → disburse → repay)
 
 ### Suite 3 — `test/ConfidentialLoan.test.js` (Full Lifecycle Integration)
 
 End-to-end integration test of the complete confidential lending workflow:
 
 **Setup & Wiring**
-- ✅ Treasury funded and approved
-- ✅ `isTreasuryReady` gate check
+-  Treasury funded and approved
+-  `isTreasuryReady` gate check
 
 **KYC Two-Step Flow**
-- ✅ Borrower requests KYC verification (encrypted attribute submission)
-- ✅ Platform owner publishes KYC result (async FHE decrypt callback)
-- ✅ Rejected borrower cannot originate loan
+-  Borrower requests KYC verification (encrypted attribute submission)
+-  Platform owner publishes KYC result (async FHE decrypt callback)
+-  Rejected borrower cannot originate loan
 
 **Origination**
-- ✅ Borrower originates loan — collateral shares locked in loan contract via `forcedTransfer`
-- ✅ Borrower can decrypt their own encrypted loan amount
-- ✅ Stranger cannot read encrypted loan fields (ACL enforcement)
+-  Borrower originates loan — collateral shares locked in loan contract via `forcedTransfer`
+-   Borrower can decrypt their own encrypted loan amount
+-   Stranger cannot read encrypted loan fields (ACL enforcement)
 
 **Disbursal (Two-Step)**
-- ✅ `publishDisbursalAmount` — Threshold Network signature verified, net amount stored
-- ✅ `confirmDisbursal` — USDC transferred from treasury to borrower, loan status → Active
-- ✅ Cannot disburse twice (re-entrancy and status guard)
+-  `publishDisbursalAmount` — Threshold Network signature verified, net amount stored
+-  `confirmDisbursal` — USDC transferred from treasury to borrower, loan status → Active
+-  Cannot disburse twice (re-entrancy and status guard)
 
 **Auditor Access**
-- ✅ Owner grants time-bounded auditor access via `FHE.allow()`
-- ✅ Auditor decrypts loan amount within grant window
+-  Owner grants time-bounded auditor access via `FHE.allow()`
+-  Auditor decrypts loan amount within grant window
 
 **Repayment (Two-Step)**
-- ✅ Borrower submits encrypted repayment amount, status → Repaid
-- ✅ Collateral remains locked until repayment is collected
-- ✅ `collectRepayment` — USDC pulled from borrower; collateral shares returned
+-  Borrower submits encrypted repayment amount, status → Repaid
+-  Collateral remains locked until repayment is collected
+-  `collectRepayment` — USDC pulled from borrower; collateral shares returned
 
 **Liquidation (Two-Step)**
-- ✅ `checkAndLiquidate` — LTV breach computed entirely in FHE, anyone can call
-- ✅ `confirmLiquidation` — collateral transferred to platform treasury
-- ✅ Double liquidation attempt reverts correctly
+-  `checkAndLiquidate` — LTV breach computed entirely in FHE, anyone can call
+-  `confirmLiquidation` — collateral transferred to platform treasury
+-  Double liquidation attempt reverts correctly
 
 ---
 
-## Milestone 1 — Completed ✅
+## Milestone 1 — Completed
 
 > **Scope:** Full on-chain protocol with privacy-preserving lending
 
 | Deliverable | Status |
 |-------------|--------|
-| ERC-3643 compliant `AssetToken` + `AssetFactory` | ✅ Done |
-| `AssetTreasury` with fee splits and revenue distribution | ✅ Done |
-| `KYCComplianceModule` + `CountryRestrictModule` | ✅ Done |
-| `AssetMarketplace` (secondary P2P trading) | ✅ Done |
-| `AssetGovernance` (DAO voting for asset parameters) | ✅ Done |
-| `EnergyProductionOracle` + `EnergyRevenueDistributor` | ✅ Done |
-| `CarbonCreditToken` + `RECToken` | ✅ Done |
-| `FHEKYCRegistry` — encrypted compliance attributes | ✅ Done |
-| `FHEAssetValuation` — encrypted appraisals | ✅ Done |
-| `FHEFeeManager` — encrypted fee computation | ✅ Done |
-| `FHEAccessControl` — auditor decrypt grants | ✅ Done |
-| `ConfidentialLoan` — full FHE-encrypted lending lifecycle | ✅ Done |
-| Test suite: 62 tests, 3 suites, all passing | ✅ Done |
-| Deployed on Fhenix Helios testnet | ✅ Done |
+| ERC-3643 compliant `AssetToken` + `AssetFactory` |  Done |
+| `AssetTreasury` with fee splits and revenue distribution |  Done |
+| `KYCComplianceModule` + `CountryRestrictModule` |  Done |
+| `AssetMarketplace` (secondary P2P trading) |  Done |
+| `AssetGovernance` (DAO voting for asset parameters) |  Done |
+| `EnergyProductionOracle` + `EnergyRevenueDistributor` |  Done |
+| `CarbonCreditToken` + `RECToken` | Done |
+| `FHEKYCRegistry` — encrypted compliance attributes |  Done |
+| `FHEAssetValuation` — encrypted appraisals |  Done |
+| `FHEFeeManager` — encrypted fee computation |  Done |
+| `FHEAccessControl` — auditor decrypt grants |  Done |
+| `ConfidentialLoan` — full FHE-encrypted lending lifecycle |  Done |
+| Test suite: 62 tests, 3 suites, all passing |  Done |
+| Deployed on Arbitrum Sepolia (Fhenix CoFHE testnet) |  Done |
+
+### Deployed Contract Addresses (Arbitrum Sepolia — Chain ID 421614)
+
+> Deployed: 2026-03-30 · Deployer: `0x6d30492c8B55657fc0e6D7F40aB53bbDE22Acc77`
+
+**T-REX Infrastructure**
+
+| Contract | Address |
+|---|---|
+| `ClaimTopicsRegistry` | [0x827c98d9…](https://sepolia.arbiscan.io/address/0x827c98d9b5C361e7d0b1748A40B1Ea34162Ff979) |
+| `TrustedIssuersRegistry` | [0x7b1E2919…](https://sepolia.arbiscan.io/address/0x7b1E2919D2B6bacB66Ec2745c845Df5d739Da349) |
+| `IdentityRegistryStorage` | [0x493390e9…](https://sepolia.arbiscan.io/address/0x493390e984E71A709DE7C5aE05088492C75eA357) |
+| `IdentityRegistry` | [0xE413130d…](https://sepolia.arbiscan.io/address/0xE413130d308d1587d0E080E9FFB4bb2826952701) |
+| `ModularCompliance` | [0x5Ff18c5a…](https://sepolia.arbiscan.io/address/0x5Ff18c5a7DEEC9265C25741012f4c946F07328c8) |
+| `KYCComplianceModule` | [0xBFd57754…](https://sepolia.arbiscan.io/address/0xBFd57754e52A7277f326d480CCEcD679c17892Ed) |
+
+**Asset Platform**
+
+| Contract | Address |
+|---|---|
+| `AssetToken` (impl) | [0xcbfC0Ad4…](https://sepolia.arbiscan.io/address/0xcbfC0Ad45EaF06C3B923e64959eAa0A6B369f83b) |
+| `AssetFactory` | [0x3f26043b…](https://sepolia.arbiscan.io/address/0x3f26043bb5ac3058C8963D2C24dd1D1eC4D0CE67) |
+| `AssetMarketplace` | [0x6030A334…](https://sepolia.arbiscan.io/address/0x6030A334fAcc6a207f1Ceb6fdbdc62EA01aC7f63) |
+| `AssetRegistry` | [0x1bc8e14F…](https://sepolia.arbiscan.io/address/0x1bc8e14Fa92ab6F8Bf18832935f44C5704C436aD) |
+| `AssetGovernance` | [0xA2A3222D…](https://sepolia.arbiscan.io/address/0xA2A3222D0ACB90428241Caa230B2148aE74d6a0e) |
+| `MockUSDC` | [0x5cDc5E3a…](https://sepolia.arbiscan.io/address/0x5cDc5E3a8eC911e13A2261Ed177dED7EE6B1F4DE) |
+
+**FHE Privacy Layer**
+
+| Contract | Address |
+|---|---|
+| `FHEKYCRegistry` | [0xA2c3c3B9…](https://sepolia.arbiscan.io/address/0xA2c3c3B96FA38f3eb6E384E7602860d62aDC3fD5) |
+| `FHEAssetValuation` | [0x13C9B635…](https://sepolia.arbiscan.io/address/0x13C9B635bc1F6D72616ED6dd9DE092209584743b) |
+| `FHEFeeManager` | [0xFF9d2eA9…](https://sepolia.arbiscan.io/address/0xFF9d2eA96821d426Fc681177F625bD7052F18662) |
+| `FHEPortfolioRegistry` | [0xA62a1612…](https://sepolia.arbiscan.io/address/0xA62a161251fEd2eb2cfdA5e328055A47d08dA360) |
+| `ConfidentialLoan` | [0x9485Fa34…](https://sepolia.arbiscan.io/address/0x9485Fa34Af83488f967647D445689F535378cc87) |
+
 
 ---
 
-## Milestone 2 — In Progress 🔨
+## Milestone 2 — Roadmap
 
-> **Scope:** Frontend dApp + Fhenix Helios production deployment
+> **Scope:** Frontend dApp + Fhenix production deployment
 
 | Deliverable | Target |
 |-------------|--------|
-| Borrower portal — KYC submission, loan origination, repayment dashboard | Q2 2025 |
-| Investor portal — fractional share purchase, revenue tracking, governance voting | Q2 2025 |
-| Platform admin panel — asset deployment, KYC publishing, liquidation management | Q2 2025 |
-| Wallet integration — MetaMask / WalletConnect with `cofhe-sdk` browser client | Q2 2025 |
-| Real-time encrypted LTV dashboard (borrower-only view via FHE permit) | Q2 2025 |
-| Fhenix Helios mainnet deployment scripts + verified contracts | Q2 2025 |
-| IPFS integration for asset metadata and legal document CIDs | Q2 2025 |
-| Automated revenue distribution from energy oracle data | Q2 2025 |
+| Improved Borrower portal — KYC submission, loan origination, repayment dashboard | Q2 2026 |
+| Improved Investor portal — fractional share purchase, revenue tracking, governance voting | Q2 2026 |
+| Improved Platform admin panel — KYC publishing, liquidation management | Q2 2026 |
+| Wallet integration — MetaMask / WalletConnect with `cofhe-sdk` browser client | Q2 2026 |
+| Real-time encrypted LTV dashboard (borrower-only view via FHE permit) | Q2 2026 |
+| Arbitrum Sepolia verified contracts + Arbiscan source verification | Q2 2026 |
+| IPFS integration for asset metadata and legal document CIDs | Q2 2026 |
+| Automated revenue distribution from energy oracle data | Q2 2026 |
 
 ---
 
-## Milestone 3 — Roadmap 🗺️
+## Milestone 3 — Roadmap
 
 > **Scope:** Institutional partnerships, multi-chain, and regulatory framework
 
 | Deliverable | Target |
 |-------------|--------|
-| Multi-jurisdiction KYC provider integrations (Sumsub, Fractal ID) | Q3 2025 |
-| Secondary market order book with encrypted bid/ask via FHE | Q3 2025 |
-| Cross-chain collateral bridging (Ethereum ↔ Fhenix) | Q3 2025 |
-| Institutional lender whitelisting with FHE credit scoring | Q3 2025 |
-| On-chain legal wrapper — tokenisation SPV structure (Nigeria, UAE, UK) | Q4 2025 |
-| Carbon credit retirement workflow + MRV oracle integration | Q4 2025 |
-| Accredited investor credential NFT (tied to FHE KYC flags) | Q4 2025 |
-| DAO treasury management for platform fee redistribution | Q4 2025 |
-| Security audit (Trail of Bits / Certik) | Q4 2025 |
-| Regulatory sandbox engagement — SEC RegD exemption framework | Q4 2025 |
+| Multi-jurisdiction KYC provider integrations (Sumsub, Fractal ID) | Q3 2026 |
+| Secondary market order book with encrypted bid/ask via FHE | Q3 2026 |
+| Cross-chain collateral bridging (Ethereum ↔ Arbitrum) | Q3 2026 |
+| Institutional lender whitelisting with FHE credit scoring | Q3 2026 |
+| On-chain legal wrapper — tokenisation SPV structure (Nigeria, UAE, UK) | Q4 2026 |
+| Carbon credit retirement workflow + MRV oracle integration | Q4 2026 |
+| Accredited investor credential NFT (tied to FHE KYC flags) | Q4 2026 |
+| DAO treasury management for platform fee redistribution | Q4 2026 |
+| Security audit (Trail of Bits / Certik) | Q4 2026 |
+| Regulatory sandbox engagement — FCA Digital Securities Sandbox | Q4 2026 |
 
 ---
 
@@ -433,7 +734,7 @@ npm install
 ### Run All Tests
 ```bash
 npx hardhat test
-# 62 passing (~3s)
+# 84 passing (~4s)
 ```
 
 ### Run Individual Suites
@@ -443,9 +744,9 @@ npx hardhat test test/FHEContracts.test.js      # FHE privacy layer
 npx hardhat test test/ConfidentialLoan.test.js  # Full lending lifecycle
 ```
 
-### Deploy to Fhenix Helios
+### Deploy to Arbitrum Sepolia (Fhenix CoFHE)
 ```bash
-npx hardhat run scripts/deploy.js --network helios
+npx hardhat run scripts/deploy.js --network arbitrumSepolia
 ```
 
 ---
@@ -458,7 +759,7 @@ AssetsGrator is incorporated in the United Kingdom and is building toward FCA re
 |--|--|
 | **Website** | [www.assetsgrator.com](https://www.assetsgrator.com/) |
 | **General Enquiries** | [help@assetsgrator.com](mailto:help@assetsgrator.com) |
-| **Network** | Fhenix Helios Testnet |
+| **Network** | Arbitrum Sepolia (Fhenix CoFHE) |
 | **Licence** | MIT |
 
 ---

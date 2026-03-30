@@ -3,7 +3,7 @@
  *
  * Uses mock FHE contracts (MockFHEFeeManager, MockFHEAssetValuation, MockFHEKYCRegistry)
  * to test the full AssetFactory + AssetTreasury + ConfidentialLoan stack locally
- * without requiring Fhenix Helios.
+ * without requiring Fhenix.
  *
  * Coverage:
  *  1. T-REX infrastructure deployment
@@ -40,15 +40,20 @@ async function deployFullStack() {
   const usdc = await MockUSDC.deploy();
 
   // ── Mock FHE contracts ─────────────────────────────────────────────────
-  const MockFee = await ethers.getContractFactory("contracts/mocks/MockFHEFeeManager.sol:MockFHEFeeManager");
+  const MockFee = await ethers.getContractFactory("contracts/mocks/MockFHEFeeManagerV2.sol:MockFHEFeeManagerV2");
   const feeManager = await MockFee.deploy(
     200,  // 2%   platform
     100,  // 1%   maintenance
     150,  // 1.5% exit
+    100,  // 1%   marketplace
     500,  // max 5%
     300,  // max 3%
+    500,  // max 5%
     500   // max 5%
   );
+
+  const MockPortfolio = await ethers.getContractFactory("contracts/mocks/MockFHEPortfolioRegistry.sol:MockFHEPortfolioRegistry");
+  const portfolioRegistry = await MockPortfolio.deploy();
 
   const MockVal = await ethers.getContractFactory("contracts/mocks/MockFHEAssetValuation.sol:MockFHEAssetValuation");
   const assetValuation = await MockVal.deploy();
@@ -112,11 +117,10 @@ async function deployFullStack() {
     await complianceImpl.getAddress(),
     await kycModuleImpl.getAddress(),
     await identityRegistry.getAddress(),
+    await feeManager.getAddress(),
+    await portfolioRegistry.getAddress(),
     await usdc.getAddress(),
     platformWallet.address,
-    200,  // 2% platform
-    100,  // 1% maintenance
-    150,  // 1.5% exit
   ]);
 
   // Deploy via ERC1967 proxy
@@ -137,7 +141,7 @@ async function deployFullStack() {
   await usdc.faucet(borrower.address,       USDC(50_000));
 
   return {
-    usdc, feeManager, assetValuation, kycFhe,
+    usdc, feeManager, portfolioRegistry, assetValuation, kycFhe,
     identityRegistry, identityRegistryStorage,
     claimTopicsRegistry, trustedIssuersRegistry,
     tokenImpl, complianceImpl, kycModuleImpl,
@@ -546,31 +550,26 @@ describe("RWA Platform — End-to-End Tests", function () {
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
-    it("Cannot set combined fees > 50%", async function () {
-      const AssetFactory = await ethers.getContractFactory("AssetFactory");
-      const factoryImpl  = await AssetFactory.deploy();
+    it("Only owner can update platform wallet", async function () {
+      const { factory, owner } = await loadFixture(deployFullStack);
+      const newWallet = ethers.Wallet.createRandom().address;
+      await factory.connect(owner).setPlatformWallet(newWallet);
+      expect(await factory.platformWallet()).to.equal(newWallet);
+    });
 
-      const ERC1967Proxy = await ethers.getContractFactory(
-        "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy"
+    it("portfolioRegistry address is correctly stored in factory", async function () {
+      const { factory, portfolioRegistry } = await loadFixture(deployFullStack);
+      expect(await factory.portfolioRegistry()).to.equal(
+        await portfolioRegistry.getAddress()
       );
+    });
 
-      const [owner, platformWallet] = await ethers.getSigners();
-      const MockUSDC = await ethers.getContractFactory("contracts/mocks/MockUSDC.sol:MockUSDC");
-      const usdc = await MockUSDC.deploy();
-
-      const badInitData = factoryImpl.interface.encodeFunctionData("initialize", [
-        ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroAddress,
-        ethers.ZeroAddress,
-        await usdc.getAddress(),
-        platformWallet.address,
-        3000, // 30% platform
-        2500, // 25% maintenance — combined 55% > 50%
-        500,
-      ]);
-
-      await expect(
-        ERC1967Proxy.deploy(await factoryImpl.getAddress(), badInitData)
-      ).to.be.revertedWith("Factory: combined fees > 50%");
+    it("fheFeeManager address is correctly stored in factory", async function () {
+      const { factory, feeManager } = await loadFixture(deployFullStack);
+      expect(await factory.fheFeeManager()).to.equal(
+        await feeManager.getAddress()
+      );
     });
   });
 });
+

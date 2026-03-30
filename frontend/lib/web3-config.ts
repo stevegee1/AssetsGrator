@@ -1,23 +1,9 @@
-import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { polygon, polygonAmoy } from "wagmi/chains";
-import { http } from "wagmi";
+import { arbitrumSepolia } from 'wagmi/chains';
 
-const AMOY_RPC =
-  process.env.NEXT_PUBLIC_AMOY_RPC_URL || "https://rpc-amoy.polygon.technology"; // public fallback
+// Arbitrum Sepolia — primary Fhenix CoFHE co-processor testnet
+export const SUPPORTED_CHAIN = arbitrumSepolia;
+export const DEFAULT_CHAIN_ID = arbitrumSepolia.id; // 421614
 
-export const wagmiConfig = getDefaultConfig({
-  appName: "AssetsGrator",
-  projectId:
-    process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ||
-    process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
-    "assetsgrator-demo",
-  chains: [polygonAmoy, polygon],
-  transports: {
-    [polygonAmoy.id]: http(AMOY_RPC),
-    [polygon.id]: http(),
-  },
-  ssr: true,
-});
-
-// Default chain used for read-only queries (works even with no wallet connected)
-export const DEFAULT_CHAIN_ID = polygonAmoy.id; // 80002
+export const RPC_URL =
+  process.env.NEXT_PUBLIC_RPC_URL ||
+  'https://sepolia-rollup.arbitrum.io/rpc';

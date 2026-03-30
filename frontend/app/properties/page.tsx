@@ -3,27 +3,44 @@
 import { useState } from 'react';
 import { useReadContract } from 'wagmi';
 import { Search, SlidersHorizontal, Loader } from 'lucide-react';
-import { PROPERTY_FACTORY_ABI } from '@/lib/contracts/abis';
-import { ADDRESSES } from '@/lib/contracts/addresses';
+import { ASSET_FACTORY_ABI } from '@/lib/contracts/abis';
+import { useContractAddresses } from '@/lib/contracts/addresses';
 import OnChainPropertyCard from '@/components/property/OnChainPropertyCard';
 
-const PROP_TYPES = ['All', 'Residential', 'Commercial', 'Industrial', 'Land', 'Energies'] as const;
-const AMOY_ADDRESSES = ADDRESSES.mumbai;
+const PROP_TYPES = ['All', 'Real Estate', 'Energy', 'Carbon', 'REC'] as const;
+
+// Wave-1 UK property token allowlist — filters out earlier test/Nigeria deployments.
+// Add new tokens here as they are seeded.
+const UK_TOKENS = new Set<string>([
+  '0x1D907Ca5EaaD0b9C4fc239F27ae1787a1eac594E', // Mayfair Luxury Apartment
+  '0x9B9b170c102E857B590d75bDE2870b7685A66639', // Canary Wharf Office Tower
+  '0xE36D2fC1FcB5fE15a34d346505cd2479ee0304C8', // Kensington Townhouse
+  '0xBE2D80f4E3C6A75F274144885B8aa96f5187b381', // Manchester City Centre Flats
+  '0xcd6282474fA015458529AcE05B2C87e454Ebe9bA', // Edinburgh Old Town Tenement
+  '0xA320558201019344E84c02e18C992929F2AFCcf2', // Birmingham Retail Park
+  '0x49e2C9121e47da67f1AeE1931A33f6b7215c3ff0', // Bristol Harbourside Penthouse
+  '0xa0aDedb752eA55b26858C21efe2546ef27264225', // Leeds Industrial Warehouse
+  '0x6864934b8275d0430d3C19142C8c922E47237C56', // Oxford Student Quarter
+  '0x379A84E4A2aE8D9c9926440fDBd1Fb3c7253181D', // Surrey Country Estate
+].map(a => a.toLowerCase()));
 
 export default function PropertiesPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<'newest' | 'val-desc' | 'val-asc'>('newest');
 
+  const { ASSET_FACTORY } = useContractAddresses();
+
   const { data: allProperties, isLoading } = useReadContract({
-    address: AMOY_ADDRESSES.PROPERTY_FACTORY,
-    abi: PROPERTY_FACTORY_ABI,
-    functionName: 'getAllProperties',
-    chainId: 80002,
+    address: ASSET_FACTORY,
+    abi: ASSET_FACTORY_ABI,
+    functionName: 'getAllAssets',
     query: { refetchInterval: 15_000 },
   });
 
-  const properties = (allProperties ?? []) as `0x${string}`[];
+  // Filter to only Wave-1 UK tokens
+  const properties = ((allProperties ?? []) as `0x${string}`[])
+    .filter(addr => UK_TOKENS.has(addr.toLowerCase()));
 
 
   return (
@@ -34,7 +51,7 @@ export default function PropertiesPage() {
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: 4 }}>Browse Assets</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
             {isLoading ? 'Loading…' : `${properties.length} asset${properties.length === 1 ? '' : 's'} available`}
-            {' · '}Live data · Polygon Amoy
+            {' · '}Live data · Arbitrum Sepolia
           </p>
         </div>
       </div>
@@ -46,7 +63,7 @@ export default function PropertiesPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: 8 }}>
           <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>
             {isLoading ? 'Loading…' : `${properties.length} Asset${properties.length === 1 ? '' : 's'} Available`}
-            <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 8 }}>· Live · Polygon Amoy</span>
+            <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 8 }}>· Live · Arbitrum Sepolia</span>
           </h2>
           {/* Sort */}
           <select
@@ -94,16 +111,16 @@ export default function PropertiesPage() {
         {isLoading && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem', gap: 10, color: 'var(--text-secondary)' }}>
             <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} />
-            <span>Fetching on-chain properties…</span>
+            <span>Fetching on-chain assets…</span>
           </div>
         )}
 
         {/* Empty state */}
         {!isLoading && properties.length === 0 && (
           <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>
-            <p style={{ fontSize: 16, fontWeight: 600 }}>No properties deployed yet</p>
+            <p style={{ fontSize: 16, fontWeight: 600 }}>No assets deployed yet</p>
             <p style={{ fontSize: 14, marginTop: 4 }}>
-              Deploy the first property from the <a href="/admin" style={{ color: 'var(--brand)' }}>Admin Panel</a>
+              Deploy the first asset from the <a href="/admin" style={{ color: 'var(--brand)' }}>Admin Panel</a>
             </p>
           </div>
         )}

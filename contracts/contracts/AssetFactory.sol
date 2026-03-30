@@ -28,14 +28,12 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
     address public kycModuleImplementation;
 
     address public defaultIdentityRegistry;
+    address public fheFeeManager;
+    address public portfolioRegistry;
 
     // ─── Platform config ──────────────────────────────────────────────────────
     address public usdc;
     address public platformWallet;
-
-    uint256 public platformRevenueBps;
-    uint256 public maintenanceReserveBps;
-    uint256 public exitFeeBps;
 
     // ─── Registry ─────────────────────────────────────────────────────────────
     address[] private _allAssets;
@@ -55,11 +53,10 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
         address complianceImpl_,
         address kycModuleImpl_,
         address defaultIdentityRegistry_,
+        address fheFeeManager_,
+        address portfolioRegistry_,
         address usdc_,
-        address platformWallet_,
-        uint256 platformRevenueBps_,
-        uint256 maintenanceReserveBps_,
-        uint256 exitFeeBps_
+        address platformWallet_
     ) external initializer {
         __Ownable_init();
 
@@ -67,13 +64,10 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
         complianceImplementation = complianceImpl_;
         kycModuleImplementation  = kycModuleImpl_;
         defaultIdentityRegistry  = defaultIdentityRegistry_;
+        fheFeeManager            = fheFeeManager_;
+        portfolioRegistry        = portfolioRegistry_;
         usdc                     = usdc_;
         platformWallet           = platformWallet_;
-
-        require(platformRevenueBps_ + maintenanceReserveBps_ <= 5_000, "Factory: combined fees > 50%");
-        platformRevenueBps    = platformRevenueBps_;
-        maintenanceReserveBps = maintenanceReserveBps_;
-        exitFeeBps            = exitFeeBps_;
 
         emit ImplementationsUpdated(tokenImpl_, complianceImpl_, kycModuleImpl_);
         emit DefaultIdentityRegistrySet(defaultIdentityRegistry_);
@@ -125,7 +119,7 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
         meta.ppaContractCID = p.ppaContractCID;
         meta.ppaTermYears  = p.ppaTermYears;
 
-        AssetToken(token).initializeAsset(identityRegistry, compliance, meta);
+        AssetToken(token).initializeAsset(identityRegistry, compliance, portfolioRegistry, meta);
     }
 
     function _deployTreasuryAndRegister(
@@ -137,9 +131,7 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
             token,
             usdc,
             platformWallet,
-            platformRevenueBps,
-            maintenanceReserveBps,
-            exitFeeBps,
+            fheFeeManager,
             msg.sender
         );
 

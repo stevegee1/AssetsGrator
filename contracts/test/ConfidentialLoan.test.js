@@ -93,6 +93,13 @@ async function deployFullLoanStack() {
   const KYCModule     = await hre.ethers.getContractFactory("KYCComplianceModule");
   const kycModuleImpl = await KYCModule.deploy();
 
+  // ── Mock FHE contracts for factory wiring ────────────────────────────────
+  const MockFee = await hre.ethers.getContractFactory("contracts/mocks/MockFHEFeeManagerV2.sol:MockFHEFeeManagerV2");
+  const mockFeeManager = await MockFee.deploy(200, 100, 150, 100, 500, 300, 500, 500);
+
+  const MockPortfolio = await hre.ethers.getContractFactory("contracts/mocks/MockFHEPortfolioRegistry.sol:MockFHEPortfolioRegistry");
+  const mockPortfolio = await MockPortfolio.deploy();
+
   // ── AssetFactory (via ERC1967 proxy — same as production) ───────────────
   const AssetFactory_  = await hre.ethers.getContractFactory("AssetFactory");
   const factoryImpl    = await AssetFactory_.deploy();
@@ -102,9 +109,10 @@ async function deployFullLoanStack() {
     await complianceImpl.getAddress(),
     await kycModuleImpl.getAddress(),
     await identityRegistry.getAddress(),
+    await mockFeeManager.getAddress(),
+    await mockPortfolio.getAddress(),
     await usdc.getAddress(),
     treasury.address,   // platformWallet
-    200, 100, 150,      // platform 2%, maintenance 1%, exit 1.5%
   ]);
 
   const ERC1967Proxy = await hre.ethers.getContractFactory(
@@ -161,10 +169,22 @@ async function deployFullLoanStack() {
   await fheValuation.registerAsset(tokenAddr, encInitVal, owner.address);
 
   const FeeFactory = await hre.ethers.getContractFactory("FHEFeeManager");
-  const [ep, em, ee] = await cofheClient
-    .encryptInputs([Encryptable.uint32(200n), Encryptable.uint32(100n), Encryptable.uint32(150n)])
+  const [ep, em, ee, emkt] = await cofheClient
+    .encryptInputs([
+      Encryptable.uint32(200n),
+      Encryptable.uint32(100n),
+      Encryptable.uint32(150n),
+      Encryptable.uint32(100n),
+    ])
     .execute();
-  const feeManager = await FeeFactory.deploy(ep, em, ee, 500, 300, 500, owner.address);
+  const feeManager = await FeeFactory.deploy(ep, em, ee, emkt, 500, 300, 500, 500, owner.address);
+  // ── Seed FHEFeeManager plaintext cache ───────────────────────────────────
+  // The real FHEFeeManager's plaintext cache starts at zero (bridge pattern).
+  // updateX() calls now sync the cache immediately — use them to seed it.
+  await feeManager.updatePlatformRevenueBps(200);     // 2%
+  await feeManager.updateMaintenanceReserveBps(100);  // 1%
+  await feeManager.updateExitFeeBps(150);             // 1.5%
+  await feeManager.updateMarketplaceFeeBps(100);      // 1%
 
   // ── ConfidentialLoan ─────────────────────────────────────────────────────
   const LoanFactory = await hre.ethers.getContractFactory("ConfidentialLoan");
@@ -298,7 +318,7 @@ describe("ConfidentialLoan — Full Lifecycle (ERC-3643 Collateral)", function (
 
       await expect(
         loan.connect(borrower).originateLoan(
-          await token.getAddress(), TOKENS(5_000), encAmt, encRate, encLtv, dueDate
+          await token.getAddress(), TOKENS(5_000), USDC(10_000), encAmt, encRate, encLtv, dueDate
         )
       ).to.be.revertedWith("ConfidentialLoan: KYC not verified");
     });
@@ -340,7 +360,7 @@ describe("ConfidentialLoan — Full Lifecycle (ERC-3643 Collateral)", function (
 
       const balBefore = await token.balanceOf(borrower.address);
       await (await loan.connect(borrower).originateLoan(
-        tokenAddr, collateralAmt, encAmt, encRate, encLtv, dueDate
+        tokenAddr, collateralAmt, USDC(10_000), encAmt, encRate, encLtv, dueDate
       )).wait();
 
       const balAfter = await token.balanceOf(borrower.address);
@@ -362,7 +382,7 @@ describe("ConfidentialLoan — Full Lifecycle (ERC-3643 Collateral)", function (
           Encryptable.uint64(6500n),
         ])
         .execute();
-      await loan.connect(borrower).originateLoan(tokenAddr, TOKENS(10_000), encAmt, encRate, encLtv, dueDate);
+      await loan.connect(borrower).originateLoan(tokenAddr, TOKENS(10_000), USDC(10_000), encAmt, encRate, encLtv, dueDate);
 
       const [encLoanAmt] = await loan.connect(borrower).getLoanEncrypted(0);
       const decrypted = await borrowerClient.decryptForView(encLoanAmt, FheTypes.Uint64).execute();
@@ -380,7 +400,7 @@ describe("ConfidentialLoan — Full Lifecycle (ERC-3643 Collateral)", function (
           Encryptable.uint64(6500n),
         ])
         .execute();
-      await loan.connect(borrower).originateLoan(tokenAddr, TOKENS(10_000), encAmt, encRate, encLtv, dueDate);
+      await loan.connect(borrower).originateLoan(tokenAddr, TOKENS(10_000), USDC(10_000), encAmt, encRate, encLtv, dueDate);
       await expect(loan.connect(investor2).getLoanEncrypted(0))
         .to.be.revertedWith("ConfidentialLoan: not permitted");
     });
@@ -418,7 +438,7 @@ describe("ConfidentialLoan — Full Lifecycle (ERC-3643 Collateral)", function (
           Encryptable.uint64(6500n),
         ])
         .execute();
-      await loan.connect(borrower).originateLoan(tokenAddr, COLLATERAL_AMT, encAmt, encRate, encLtv, dueDate);
+      await loan.connect(borrower).originateLoan(tokenAddr, COLLATERAL_AMT, USDC(10_000), encAmt, encRate, encLtv, dueDate);
       sharedCtx.borrowerClient = borrowerClient; // save for later use
     });
 
@@ -482,7 +502,7 @@ describe("ConfidentialLoan — Full Lifecycle (ERC-3643 Collateral)", function (
       const [encAmt, encRate, encLtv] = await borrowerClient.encryptInputs([
         Encryptable.uint64(USDC(10_000)), Encryptable.uint32(500n), Encryptable.uint64(6500n)
       ]).execute();
-      await loan.connect(borrower).originateLoan(tokenAddr, TOKENS(10_000), encAmt, encRate, encLtv, dueDate);
+      await loan.connect(borrower).originateLoan(tokenAddr, TOKENS(10_000), USDC(10_000), encAmt, encRate, encLtv, dueDate);
 
       // Grant auditor access
       const expiresAt = (await time.latest()) + 90 * 24 * 60 * 60;
@@ -522,7 +542,7 @@ describe("ConfidentialLoan — Full Lifecycle (ERC-3643 Collateral)", function (
       const [encAmt, encRate, encLtv] = await borrowerClient.encryptInputs([
         Encryptable.uint64(LOAN_AMOUNT), Encryptable.uint32(500n), Encryptable.uint64(6500n)
       ]).execute();
-      await loan.connect(borrower).originateLoan(tokenAddr, COLLATERAL_AMT, encAmt, encRate, encLtv, dueDate);
+      await loan.connect(borrower).originateLoan(tokenAddr, COLLATERAL_AMT, USDC(10_000), encAmt, encRate, encLtv, dueDate);
 
       // Publish net and disburse
       const netAmt = LOAN_AMOUNT - (LOAN_AMOUNT * 200n / 10_000n);
@@ -599,7 +619,7 @@ describe("ConfidentialLoan — Full Lifecycle (ERC-3643 Collateral)", function (
       const [encAmt, encRate, encLtv] = await borrowerClient.encryptInputs([
         Encryptable.uint64(LOAN_AMOUNT), Encryptable.uint32(500n), Encryptable.uint64(6500n)
       ]).execute();
-      await loan.connect(borrower).originateLoan(tokenAddr, COLLATERAL_AMT, encAmt, encRate, encLtv, dueDate);
+      await loan.connect(borrower).originateLoan(tokenAddr, COLLATERAL_AMT, USDC(10_000), encAmt, encRate, encLtv, dueDate);
 
       const netAmt = LOAN_AMOUNT - (LOAN_AMOUNT * 200n / 10_000n);
       const [,,,,encNet] = await loan.getLoanEncrypted(0);

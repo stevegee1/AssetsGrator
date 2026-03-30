@@ -5,7 +5,6 @@ import { Coins, TrendingUp, Building2, AlertCircle, Loader2, Wallet } from 'luci
 import Link from 'next/link';
 import { useDashboard } from '@/lib/hooks/useDashboard';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { PROPERTY_TREASURY_ABI } from '@/lib/contracts/abis';
 
 // ── Format helpers ────────────────────────────────────────────────────────────
 // All on-chain USDC values are 6-decimal (e.g. 1_000_000n = $1.00)
@@ -23,7 +22,7 @@ function fmtUnits(units: bigint): string {
 }
 
 export default function DashboardPage() {
-  const { holdings, totalValueUsdc, totalClaimable, isKYCVerified, isLoading, walletConnected } = useDashboard();
+  const { holdings, totalValueUsd, totalClaimable, isKYCVerified, isLoading, walletConnected } = useDashboard();
   const [redeemingToken, setRedeemingToken] = useState<`0x${string}` | null>(null);
 
   const { writeContract, data: txHash, isPending } = useWriteContract();
@@ -35,9 +34,14 @@ export default function DashboardPage() {
     if (!redeemingHolding?.treasuryAddress || redeemingHolding.units === 0n) return;
     writeContract({
       address: redeemingHolding.treasuryAddress,
-      abi: PROPERTY_TREASURY_ABI,
-      functionName: 'redeem',
-      args: [redeemingHolding.units],
+      abi: [{
+        name: 'claimRevenue',
+        type: 'function',
+        stateMutability: 'nonpayable',
+        inputs: [],
+        outputs: [],
+      }] as const,
+      functionName: 'claimRevenue',
     });
   };
 
@@ -96,7 +100,7 @@ export default function DashboardPage() {
                   {[
                     { label: 'Properties Held', value: String(holdings.length), icon: Building2 },
                     { label: 'Total Units', value: holdings.reduce((s, h) => s + h.units, 0n).toLocaleString(), icon: Coins },
-                    { label: 'Portfolio Value', value: fmtUsdc(totalValueUsdc), icon: TrendingUp, highlight: true },
+                    { label: 'Portfolio Value', value: fmtUsdc(totalValueUsd / 10n**12n), icon: TrendingUp, highlight: true },
                     { label: 'Claimable (est.)', value: fmtUsdc(totalClaimable), icon: Coins, green: true },
                   ].map((s, i) => (
                     <div key={i} className="stat-box" style={{ borderRight: i < 3 ? '1px solid var(--border)' : undefined }}>
@@ -129,7 +133,7 @@ export default function DashboardPage() {
                             <div style={{ display: 'flex', gap: '1.5rem', fontSize: 13, flexWrap: 'wrap' }}>
                               <div><span style={{ color: 'var(--text-secondary)' }}>Units: </span><strong>{fmtUnits(h.units)}</strong></div>
                               <div><span style={{ color: 'var(--text-secondary)' }}>Price/unit: </span><strong>{fmtPrice(h.pricePerUnit)}</strong></div>
-                              <div><span style={{ color: 'var(--text-secondary)' }}>Value: </span><strong style={{ color: 'var(--green)' }}>{fmtUsdc(h.currentValueUsdc)}</strong></div>
+                              <div><span style={{ color: 'var(--text-secondary)' }}>Value: </span><strong style={{ color: 'var(--green)' }}>{fmtUsdc(h.currentValueUsd / 10n**12n)}</strong></div>
                             </div>
                           </div>
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -141,7 +145,7 @@ export default function DashboardPage() {
                               onClick={() => setRedeemingToken(h.tokenAddress)}
                               disabled={h.claimableUsdc === 0n || !isKYCVerified}
                             >
-                              Redeem Tokens
+                              Claim Revenue
                             </button>
                           </div>
                         </div>
@@ -152,7 +156,7 @@ export default function DashboardPage() {
 
                 {/* Note about rent distribution */}
                 <div style={{ background: 'var(--brand-light)', border: '1px solid rgba(26,111,168,0.15)', borderRadius: 8, padding: '0.75rem 1rem', fontSize: 13, color: 'var(--brand)' }}>
-                  💡 <strong>Rental income</strong> is deposited by the property manager into each property's treasury. The "Est. Redeemable" value reflects your proportional share of current USDC held.
+                  💡 <strong>Revenue</strong> is deposited by the asset manager into each asset's treasury. The "Est. Redeemable" value reflects your proportional share of current USDC held.
                 </div>
               </>
             )}

@@ -1,0 +1,127 @@
+{
+  "seededAt": "2026-03-30T19:46:41.068Z",
+  "network": "arbitrumSepolia",
+  "factory": "0x3f26043bb5ac3058C8963D2C24dd1D1eC4D0CE67",
+  "properties": [
+    {
+      "index": 1,
+      "name": "Mayfair Luxury Apartment",
+      "symbol": "MLA",
+      "token": "0x1D907Ca5EaaD0b9C4fc239F27ae1787a1eac594E",
+      "totalSupply": "100000",
+      "priceUSD": "50.0",
+      "valuationUSD": "5000000.0",
+      "image": "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=80",
+      "ipfsCID": "QmMayfairLuxuryApartmentParkLaneLondonW1K",
+      "txHash": "0x8df2728a087786eabe2e6eaec3dfc9ca1413d1b6dfed1c5fcbbbecc626ce39c7"
+    },
+    {
+      "index": 2,
+      "name": "Canary Wharf Office Tower",
+      "symbol": "CWO",
+      "token": "0x9B9b170c102E857B590d75bDE2870b7685A66639",
+      "totalSupply": "200000",
+      "priceUSD": "30.0",
+      "valuationUSD": "6000000.0",
+      "image": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&q=80",
+      "ipfsCID": "QmCanaryWharfOfficeTowerE14LondonUK2024",
+      "txHash": "0x6a2a71c72192a123a3b63d9c87db21dc108246dcd8c71a15a3eb216bbd539e25"
+    },
+    {
+      "index": 3,
+      "name": "Kensington Townhouse",
+      "symbol": "KTH",
+      "token": "0xE36D2fC1FcB5fE15a34d346505cd2479ee0304C8",
+      "totalSupply": "50000",
+      "priceUSD": "40.0",
+      "valuationUSD": "2000000.0",
+      "image": "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800&q=80",
+      "ipfsCID": "QmKensingtonTownhouseVictoriaRoadW8London",
+      "txHash": "0xa31253142b3c7c42b5fa62b8eba6aa0950f343d3c46a1d8db89a7b413f476bd0"
+    },
+    {
+      "index": 4,
+      "name": "Manchester City Centre Flats",
+      "symbol": "MCF",
+      "token": "0xBE2D80f4E3C6A75F274144885B8aa96f5187b381",
+      "totalSupply": "150000",
+      "priceUSD": "10.0",
+      "valuationUSD": "1500000.0",
+      "image": "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&q=80",
+      "ipfsCID": "QmManchesterCityCentreFlatsDeansgate2024",
+      "txHash": "0x13601b52a6ae0a26499091cb1d68bae5edee7e5b56cf5dafca6c032f6f8b2cd5"
+    },
+    {
+      "index": 5,
+      "name": "Edinburgh Old Town Tenement",
+      "symbol": "EOT",
+      "token": "0xcd6282474fA015458529AcE05B2C87e454Ebe9bA",
+      "totalSupply": "80000",
+      "priceUSD": "15.0",
+      "valuationUSD": "1200000.0",
+      "image": "https://images.unsplash.com/photo-1600596542815-ffad4c153b09?w=800&q=80",
+      "ipfsCID": "QmEdinburghOldTownTenementRoyalMileEH1",
+      "txHash": "0x66b5230d6b50177cff7331d90ae88528c7d167355060cbacb3b3cadc863bb3ad"
+    },
+    {
+      "index": 6,
+      "name": "Birmingham Retail Park",
+      "symbol": "BRP",
+      "token": "0xA320558201019344E84c02e18C992929F2AFCcf2",
+      "totalSupply": "100000",
+      "priceUSD": "25.0",
+      "valuationUSD": "2500000.0",
+      "image": "https://images.unsplash.com/photo-1554435493-93422e8220c8?w=800&q=80",
+      "ipfsCID": "QmBirminghamRetailParkBullringB5London2024",
+      "txHash": "0xfaef36140aa79515e65c1307f8c48606b4c7116c74e08ff2cb0388c63302847a"
+    },
+    {
+      "index": 7,
+      "name": "Bristol Harbourside Penthouse",
+      "symbol": "BHP",
+      "token": "0x49e2C9121e47da67f1AeE1931A33f6b7215c3ff0",
+      "totalSupply": "40000",
+      "priceUSD": "35.0",
+      "valuationUSD": "1400000.0",
+      "image": "https://images.unsplash.com/photo-1600607687939-ce8a6d79a41a?w=800&q=80",
+      "ipfsCID": "QmBristolHarboursidePenthouseBS1UK2024xx",
+      "txHash": "0x98190bbfa4be21e5273fd98ae0b5f34ca33f2c0b770100ba96b8283b49ccafc6"
+    },
+    {
+      "index": 8,
+      "name": "Leeds Industrial Warehouse",
+      "symbol": "LIW",
+      "token": "0xa0aDedb752eA55b26858C21efe2546ef27264225",
+      "totalSupply": "60000",
+      "priceUSD": "20.0",
+      "valuationUSD": "1200000.0",
+      "image": "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=800&q=80",
+      "ipfsCID": "QmLeedsIndustrialWarehouseWhiteRoseLS11UK",
+      "txHash": "0x603a200c599e43c6b6af96c34f2b47fc1958dd1cebd9546215cf42c0647ee594"
+    },
+    {
+      "index": 9,
+      "name": "Oxford Student Quarter",
+      "symbol": "OSQ",
+      "token": "0x6864934b8275d0430d3C19142C8c922E47237C56",
+      "totalSupply": "120000",
+      "priceUSD": "8.0",
+      "valuationUSD": "960000.0",
+      "image": "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=80",
+      "ipfsCID": "QmOxfordStudentQuarterCowleyRdOX42024UK",
+      "txHash": "0xd28878eccb09fa3630be3f4543faec1a049dd04bab1df3b4f785f76bab021284"
+    },
+    {
+      "index": 10,
+      "name": "Surrey Country Estate",
+      "symbol": "SCE",
+      "token": "0x379A84E4A2aE8D9c9926440fDBd1Fb3c7253181D",
+      "totalSupply": "50000",
+      "priceUSD": "60.0",
+      "valuationUSD": "3000000.0",
+      "image": "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80",
+      "ipfsCID": "QmSurreyCountryEstateGuildfordRdGU2UK2024",
+      "txHash": "0x0f38d5cc0c0596b30917c1bd8252f9affbd3453db797d1561fbe99fb4c2b6d29"
+    }
+  ]
+}

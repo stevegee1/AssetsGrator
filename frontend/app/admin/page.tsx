@@ -3,18 +3,20 @@
 import { useState } from 'react';
 import {
   useWriteContract, useWaitForTransactionReceipt,
-  useAccount, useChainId, useReadContract,
+  useAccount, useChainId, useReadContract, useSwitchChain,
 } from 'wagmi';
+import { arbitrumSepolia } from 'wagmi/chains';
 import { parseUnits, formatUnits } from 'viem';
 import { MOCK_PROPOSALS } from '@/lib/mock-data';
 import {
-  ThumbsUp, ThumbsDown, Plus, BarChart3, Vote,
-  ShieldOff, Loader, DollarSign, List, ToggleLeft, ToggleRight,
+  ThumbsUp, ThumbsDown, Plus, Vote,
+  ShieldOff, Loader, DollarSign, List, ToggleLeft,
+  CheckCircle, AlertCircle, ExternalLink,
 } from 'lucide-react';
 import {
-  PROPERTY_FACTORY_ABI,
+  ASSET_FACTORY_ABI, ASSET_TOKEN_ABI,
 } from '@/lib/contracts/abis';
-import { ADDRESSES } from '@/lib/contracts/addresses';
+import { useContractAddresses } from '@/lib/contracts/addresses';
 import { useIsAdmin } from '@/lib/hooks/useIsAdmin';
 import DeployProperty from '@/components/admin/DeployProperty';
 
@@ -44,37 +46,38 @@ function TxFeedback({ isSuccess, writeError, successMsg }: {
   return null;
 }
 
-// ─── Tab 1: Deployed Properties ─────────────────────────────────────────────
-function DeployedPropertiesTab({ addresses }: { addresses: typeof ADDRESSES.mumbai }) {
+// ─── Tab 1: Deployed Assets ─────────────────────────────────────────────────
+function DeployedPropertiesTab() {
+  const { ASSET_FACTORY } = useContractAddresses();
   const { data: allProperties, isLoading } = useReadContract({
-    address: addresses.PROPERTY_FACTORY,
-    abi: PROPERTY_FACTORY_ABI,
-    functionName: 'getAllProperties',
-    query: { enabled: !!addresses.PROPERTY_FACTORY, refetchInterval: 15000 },
+    address: ASSET_FACTORY,
+    abi: ASSET_FACTORY_ABI,
+    functionName: 'getAllAssets',
+    query: { enabled: !!ASSET_FACTORY, refetchInterval: 15000 },
   });
 
   const props = (allProperties ?? []) as `0x${string}`[];
 
   return (
     <div className="card" style={{ padding: '1.25rem' }}>
-      <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>📋 Deployed Property Tokens</h3>
+      <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>📋 Deployed Asset Tokens</h3>
       {isLoading && <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Loading…</p>}
       {!isLoading && props.length === 0 && (
         <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: '1rem', fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center' }}>
-          No properties deployed yet. Use the <strong>Create Property</strong> tab.
+          No assets deployed yet. Use the <strong>Deploy Asset</strong> tab.
         </div>
       )}
       {props.map((addr, i) => (
         <div key={addr} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.65rem 0.75rem', borderRadius: 8, background: 'var(--bg-secondary)', marginBottom: 6, fontSize: 13 }}>
           <span style={{ fontWeight: 700, minWidth: 24 }}>#{i + 1}</span>
           <code style={{ flex: 1, fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all' }}>{addr}</code>
-          <a href={`https://amoy.polygonscan.com/address/${addr}`} target="_blank" rel="noopener noreferrer"
-            style={{ color: 'var(--brand)', fontSize: 11, whiteSpace: 'nowrap' }}>PolygonScan ↗</a>
+          <a href={`https://sepolia.arbiscan.io/address/${addr}`} target="_blank" rel="noopener noreferrer"
+            style={{ color: 'var(--brand)', fontSize: 11, whiteSpace: 'nowrap' }}>Arbiscan ↗</a>
         </div>
       ))}
       {props.length > 0 && (
         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
-          {props.length} propert{props.length === 1 ? 'y' : 'ies'} deployed · Factory: {addresses.PROPERTY_FACTORY.slice(0,6)}…
+          {props.length} asset{props.length === 1 ? '' : 's'} deployed · Factory: {ASSET_FACTORY.slice(0,6)}…
         </div>
       )}
     </div>
@@ -82,7 +85,7 @@ function DeployedPropertiesTab({ addresses }: { addresses: typeof ADDRESSES.mumb
 }
 
 // ─── Tab 2: Token Management ─────────────────────────────────────────────────
-function TokenManagementTab({ addresses }: { addresses: typeof ADDRESSES.mumbai }) {
+function TokenManagementTab() {
   const [tokenAddr, setTokenAddr] = useState('');
   const { writeContract, isPending, writeError, isMining, isSuccess } = useTxState();
 
@@ -116,8 +119,10 @@ function TokenManagementTab({ addresses }: { addresses: typeof ADDRESSES.mumbai 
     if (!/^0x[0-9a-fA-F]{40}$/.test(treasury)) return;
     writeContract({
       address: tokenAddr as `0x${string}`,
-      abi: PROPERTY_TOKEN_ABI_MINI,
+      abi: ASSET_TOKEN_ABI,
       functionName: 'activate',
+      maxFeePerGas: 100_000_000n,        // 0.1 gwei — prevents baseFee race on Arb Sepolia
+      maxPriorityFeePerGas: 1_000_000n,  // 0.001 gwei
       args: [treasury as `0x${string}`],
     });
   };
@@ -153,7 +158,7 @@ function TokenManagementTab({ addresses }: { addresses: typeof ADDRESSES.mumbai 
                 style={{ fontFamily: 'monospace', fontSize: 13, marginTop: 4, marginBottom: 8 }} />
               <button id="activate-btn" className="btn btn-primary" style={{ width: '100%' }}
                 onClick={activate} disabled={busy || !/^0x[0-9a-fA-F]{40}$/.test(treasury)}>
-                {busy ? 'Activating…' : '🚀 Activate Property Token'}
+                {busy ? 'Activating…' : '🚀 Activate Asset Token'}
               </button>
             </div>
           )}
@@ -188,7 +193,8 @@ const ERC20_APPROVE_ABI = [
   { inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], name: 'approve', outputs: [{ name: '', type: 'bool' }], stateMutability: 'nonpayable', type: 'function' },
 ] as const;
 
-function RentVaultTab({ addresses }: { addresses: typeof ADDRESSES.mumbai }) {
+function RentVaultTab() {
+  const { USDC } = useContractAddresses();
   const [vaultAddr, setVaultAddr] = useState('');
   const [rentAmt, setRentAmt] = useState('');
   const [appraisalVal, setAppraisalVal] = useState('');
@@ -207,6 +213,7 @@ function RentVaultTab({ addresses }: { addresses: typeof ADDRESSES.mumbai }) {
 
   const [deposited, distributed, pending, propValue, annual] = stats ?? [];
 
+  // Revenue deposit via treasury
   const depositRent = () => {
     if (!rentAmt) return;
     writeContract({ address: vaultAddr as `0x${string}`, abi: VAULT_ABI_MINI, functionName: 'receiveRent', args: [parseUnits(rentAmt, 6)] });
@@ -234,7 +241,7 @@ function RentVaultTab({ addresses }: { addresses: typeof ADDRESSES.mumbai }) {
             <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Vault Overview</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
               {[
-                { label: 'Property Value', value: propValue !== undefined ? `$${Number(formatUnits(propValue, 6)).toLocaleString()}` : '…' },
+                { label: 'Asset Value', value: propValue !== undefined ? `$${Number(formatUnits(propValue, 6)).toLocaleString()}` : '…' },
                 { label: 'Annual Rent',    value: annual    !== undefined ? `$${Number(formatUnits(annual, 6)).toLocaleString()}` : '…' },
                 { label: 'Pending',        value: pending   !== undefined ? `$${Number(formatUnits(pending, 6)).toLocaleString()}` : '…' },
               ].map(s => (
@@ -258,7 +265,7 @@ function RentVaultTab({ addresses }: { addresses: typeof ADDRESSES.mumbai }) {
               <input id="rent-amount" type="number" min="1" step="1" placeholder="USDC amount (e.g. 4500)"
                 value={rentAmt} onChange={e => setRentAmt(e.target.value)} style={{ flex: 1 }} />
               <button id="approve-usdc-btn" className="btn btn-outline" disabled={busy || !rentAmt}
-                onClick={() => writeContract({ address: addresses.USDC, abi: ERC20_APPROVE_ABI, functionName: 'approve', args: [vaultAddr as `0x${string}`, parseUnits(rentAmt, 6)] })}>
+                onClick={() => writeContract({ address: USDC, abi: ERC20_APPROVE_ABI, functionName: 'approve', args: [vaultAddr as `0x${string}`, parseUnits(rentAmt, 6)] })}>
                 1. Approve
               </button>
               <button id="deposit-rent-btn" className="btn btn-primary" disabled={busy || !rentAmt} onClick={depositRent}>
@@ -282,7 +289,7 @@ function RentVaultTab({ addresses }: { addresses: typeof ADDRESSES.mumbai }) {
 
           {/* Appraisal */}
           <div className="card" style={{ padding: '1.25rem' }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Update Property Valuation</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Update Asset Valuation</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <input id="appraisal-val" type="number" min="1" placeholder="New value in USD (e.g. 550000)"
                 value={appraisalVal} onChange={e => setAppraisalVal(e.target.value)} />
@@ -311,11 +318,12 @@ const FACTORY_READ_ABI = [
   ], stateMutability: 'view', type: 'function' },
 ] as const;
 
-function PropertiesListTab({ addresses }: { addresses: typeof ADDRESSES.mumbai }) {
+function PropertiesListTab() {
+  const { ASSET_FACTORY } = useContractAddresses();
   const { data: count } = useReadContract({
-    address: addresses.PROPERTY_FACTORY,
-    abi: FACTORY_READ_ABI,
-    functionName: 'propertyCount',
+    address: ASSET_FACTORY,
+    abi: ASSET_FACTORY_ABI,
+    functionName: 'totalAssets',
     query: { refetchInterval: 15000 },
   });
 
@@ -335,7 +343,7 @@ function PropertiesListTab({ addresses }: { addresses: typeof ADDRESSES.mumbai }
       )}
 
       {ids.map(id => (
-        <PropertyRow key={id} id={id} factoryAddr={addresses.PROPERTY_FACTORY} />
+        <PropertyRow key={id} id={id} factoryAddr={ASSET_FACTORY} />
       ))}
     </div>
   );
@@ -350,17 +358,17 @@ function PropertyRow({ id, factoryAddr }: { id: number; factoryAddr: `0x${string
   });
 
   if (!data) return (
-    <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-secondary)' }}>Loading property {id}…</div>
+    <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-secondary)' }}>Loading asset {id}…</div>
   );
 
   const [pid, token, vault, gov, sale, manager, uri, createdAt, active] = data;
   const short = (addr: string) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-  const scanBase = 'https://amoy.polygonscan.com/address/';
+  const scanBase = 'https://sepolia.arbiscan.io/address/';
 
   return (
     <div style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <span style={{ fontWeight: 700, fontSize: 15 }}>Property #{Number(pid)}</span>
+        <span style={{ fontWeight: 700, fontSize: 15 }}>Asset #{Number(pid)}</span>
         <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: active ? 'var(--green-bg)' : 'var(--red-bg)', color: active ? 'var(--green)' : 'var(--red)' }}>
           {active ? 'Active' : 'Inactive'}
         </span>
@@ -412,7 +420,7 @@ function GovernanceTab() {
 
 // ─── Main Admin Page ──────────────────────────────────────────────────────────
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: 'register',   label: 'Register Property', icon: <Plus size={14} /> },
+  { id: 'register',   label: 'Deploy Asset',      icon: <Plus size={14} /> },
   { id: 'token',       label: 'Token Management',   icon: <ToggleLeft size={14} /> },
   { id: 'vault',      label: 'Rent & Vault',       icon: <DollarSign size={14} /> },
   { id: 'properties', label: 'Properties',         icon: <List size={14} /> },
@@ -423,8 +431,10 @@ export default function AdminPage() {
   const { isAdmin, isLoading } = useIsAdmin();
   const { isConnected } = useAccount();
   const chainId = useChainId();
-  const addresses = chainId === 80002 ? ADDRESSES.mumbai : ADDRESSES.polygon;
+  const { switchChain } = useSwitchChain();
   const [tab, setTab] = useState<Tab>('register');
+
+  const isWrongChain = isConnected && chainId !== arbitrumSepolia.id;
 
   if (isLoading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 10, color: 'var(--text-secondary)' }}>
@@ -452,9 +462,29 @@ export default function AdminPage() {
       <div style={{ marginBottom: '1.5rem' }}>
         <h1 style={{ fontSize: 24, fontWeight: 800 }}>Admin Panel</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 4 }}>
-          Manage properties, sales, and rent distribution on Polygon Amoy
+          Manage assets, token activation, and revenue distribution on Arbitrum Sepolia
         </p>
       </div>
+
+      {/* ── Wrong network banner ─────────────────────────────────────── */}
+      {isWrongChain && (
+        <div style={{
+          background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8,
+          padding: '0.75rem 1rem', marginBottom: '1.25rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+            ⚠️ Wrong network — contracts are on Arbitrum Sepolia (421614). You are on chain {chainId}.
+          </span>
+          <button
+            className="btn btn-sm"
+            style={{ background: '#f59e0b', color: '#fff', border: 'none', whiteSpace: 'nowrap' }}
+            onClick={() => switchChain({ chainId: arbitrumSepolia.id })}
+          >
+            Switch Network
+          </button>
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="tab-bar" style={{ display: 'flex', gap: 4, marginBottom: '1.25rem', borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
@@ -474,9 +504,9 @@ export default function AdminPage() {
 
       {/* Tab content */}
       {tab === 'register'   && <DeployProperty />}
-      {tab === 'token'       && <TokenManagementTab addresses={addresses} />}
-      {tab === 'vault'      && <RentVaultTab addresses={addresses} />}
-      {tab === 'properties' && <PropertiesListTab addresses={addresses} />}
+      {tab === 'token'       && <TokenManagementTab />}
+      {tab === 'vault'      && <RentVaultTab />}
+      {tab === 'properties' && <PropertiesListTab />}
       {tab === 'governance' && <GovernanceTab />}
     </section>
   );

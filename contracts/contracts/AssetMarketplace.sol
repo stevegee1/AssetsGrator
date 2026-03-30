@@ -12,6 +12,7 @@ import "./AssetToken.sol";
 import "./interfaces/IAssetMarketplace.sol";
 import "./interfaces/IAssetToken.sol";
 import "./AssetFactory.sol";
+import "./interfaces/IFHEFeeManager.sol";
 
 /// @title AssetMarketplace
 /// @notice Handles two markets for any tokenised real-world asset:
@@ -32,7 +33,7 @@ contract AssetMarketplace is
     AssetFactory public factory;
     address public paymentToken;
     address public feeRecipient;
-    uint256 public platformFeeBPS;
+    address public fheFeeManager;
 
     // ─── Secondary market listings ────────────────────────────────────────────
 
@@ -50,19 +51,19 @@ contract AssetMarketplace is
         address factory_,
         address paymentToken_,
         address feeRecipient_,
-        uint256 platformFeeBPS_
+        address fheFeeManager_
     ) external initializer {
         __Ownable_init();
         __ReentrancyGuard_init();
 
         require(factory_ != address(0), "Marketplace: zero factory");
         require(feeRecipient_ != address(0), "Marketplace: zero fee recipient");
-        require(platformFeeBPS_ <= MAX_FEE_BPS, "Marketplace: fee too high");
+        require(fheFeeManager_ != address(0), "Marketplace: zero fee manager");
 
         factory = AssetFactory(factory_);
         paymentToken = paymentToken_;
         feeRecipient = feeRecipient_;
-        platformFeeBPS = platformFeeBPS_;
+        fheFeeManager = fheFeeManager_;
     }
 
     // ─── Primary Market ───────────────────────────────────────────────────────
@@ -91,7 +92,7 @@ contract AssetMarketplace is
 
         require(totalCost > 0, "Marketplace: zero cost");
 
-        uint256 fee = (totalCost * platformFeeBPS) / 10_000;
+        uint256 fee = IFHEFeeManager(fheFeeManager).computeMarketplaceFeePlaintext(totalCost);
         uint256 proceeds = totalCost - fee;
 
         _collectPayment(msg.sender, totalCost);
@@ -155,7 +156,7 @@ contract AssetMarketplace is
         );
 
         uint256 totalCost = units * listing.pricePerUnit;
-        uint256 fee = (totalCost * platformFeeBPS) / 10_000;
+        uint256 fee = IFHEFeeManager(fheFeeManager).computeMarketplaceFeePlaintext(totalCost);
         uint256 proceeds = totalCost - fee;
         uint256 amount = units * (10 ** 18);
 
@@ -204,11 +205,10 @@ contract AssetMarketplace is
         uint256 units
     )
         external
-        view
         returns (uint256 totalCost, uint256 fee, uint256 netToTreasury)
     {
         totalCost = _calculateCost(token, units);
-        fee = (totalCost * platformFeeBPS) / 10_000;
+        fee = IFHEFeeManager(fheFeeManager).computeMarketplaceFeePlaintext(totalCost);
         netToTreasury = totalCost - fee;
     }
 
@@ -219,9 +219,9 @@ contract AssetMarketplace is
         feeRecipient = recipient;
     }
 
-    function setPlatformFee(uint256 feeBPS) external onlyOwner {
-        require(feeBPS <= MAX_FEE_BPS, "Marketplace: fee too high");
-        platformFeeBPS = feeBPS;
+    function setFHEFeeManager(address fm) external onlyOwner {
+        require(fm != address(0), "Marketplace: zero address");
+        fheFeeManager = fm;
     }
 
     function setPaymentToken(address token) external onlyOwner {

@@ -54,49 +54,27 @@ module.exports = {
     hardhat: {
       chainId: 31337,
     },
-    // ── Fhenix Testnet ──────────────────────────────────────────────────────
-    fhenix: {
-      url: process.env.FHENIX_RPC_URL || "https://api.nitrogen.fhenix.zone",
+    // ── Arbitrum Sepolia — primary deployment target ────────────────────────
+    // Fhenix CoFHE co-processor supports Arbitrum Sepolia.
+    // L2 gas is ~100x cheaper than Ethereum Sepolia.
+    arbitrumSepolia: {
+      url: process.env.ARBITRUM_SEPOLIA_RPC_URL,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 8008135,
-    },
-    // ── Polygon Amoy Testnet (active testnet as of 2024) ──
-    amoy: {
-      url:
-        process.env.POLYGON_AMOY_RPC_URL ||
-        "https://rpc-amoy.polygon.technology",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 80002,
-      gasPrice: "auto",
-    },
-    // ── Legacy Mumbai (deprecated) ──
-    mumbai: {
-      url:
-        process.env.POLYGON_MUMBAI_RPC_URL ||
-        "https://rpc-mumbai.maticvigil.com",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 80001,
-    },
-    // ── Polygon Mainnet ──
-    polygon: {
-      url: process.env.POLYGON_MAINNET_RPC_URL || "https://polygon-rpc.com",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 137,
+      chainId: 421614,
+      timeout: 300_000,  // 5 min — handles slow mobile connections
     },
   },
   etherscan: {
     apiKey: {
-      polygon: process.env.POLYGONSCAN_API_KEY || "",
-      polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
-      polygonAmoy: process.env.POLYGONSCAN_API_KEY || "",
+      arbitrumSepolia: process.env.ARBISCAN_API_KEY || "",
     },
     customChains: [
       {
-        network: "polygonAmoy",
-        chainId: 80002,
+        network: "arbitrumSepolia",
+        chainId: 421614,
         urls: {
-          apiURL: "https://api-amoy.polygonscan.com/api",
-          browserURL: "https://amoy.polygonscan.com",
+          apiURL: "https://api-sepolia.arbiscan.io/api",
+          browserURL: "https://sepolia.arbiscan.io",
         },
       },
     ],

@@ -8,8 +8,8 @@ import Footer from '@/components/layout/Footer';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'AssetsGrator – Tokenized Real Estate',
-  description: 'Invest in fractional real estate with blockchain transparency. Earn rental income, vote on property decisions.',
+  title: 'AssetsGrator – Tokenized RWA Platform',
+  description: 'Invest in tokenized real-world assets on Arbitrum Sepolia. Earn asset revenue, vote on platform decisions, and manage FHE-verifiable KYC compliance.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

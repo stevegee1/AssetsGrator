@@ -4,52 +4,71 @@ import Link from 'next/link';
 import { MapPin, Coins } from 'lucide-react';
 import { useReadContract } from 'wagmi';
 import { formatUnits } from 'viem';
-import { PROPERTY_TOKEN_ABI } from '@/lib/contracts/abis';
+import { ASSET_TOKEN_ABI } from '@/lib/contracts/abis';
+import { DEFAULT_CHAIN_ID } from '@/lib/web3-config';
 
-// ── Fixed GBP/USD rate — update when we integrate live FX ─────────────────────
-const GBP_RATE = 0.79; // 1 USD = 0.79 GBP (approx)
 
-const PROP_TYPE_LABELS = ['Residential', 'Commercial', 'Industrial', 'Land', 'Energies'];
+
+const ASSET_CATEGORY_LABELS = ['Real Estate', 'Energy', 'Carbon', 'REC', 'Other'];
 
 // Status: 0=Pending, 1=Active, 2=Paused, 3=Closed
 const STATUS_LABELS = ['Coming Soon', 'Active', 'Paused', 'Closed'];
 const STATUS_BADGE  = ['badge-yellow', 'badge-green', 'badge-yellow', 'badge-red'];
 
-function fmtGBP(rawUsd: bigint, decimals = 18): string {
-  const usd = Number(formatUnits(rawUsd, decimals));
-  const gbp = usd * GBP_RATE;
-  if (gbp >= 1_000_000) return `£${(gbp / 1_000_000).toFixed(1)}M`;
-  if (gbp >= 1_000)     return `£${(gbp / 1_000).toFixed(0)}K`;
-  return `£${gbp.toFixed(2)}`;
+// Curated house images — keyed by ipfsCID prefix (first 22 chars, unique per UK property).
+const PROPERTY_IMAGES: Record<string, string> = {
+  QmMayfairLuxuryApartmen:  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=80',
+  QmCanaryWharfOfficeTower: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&q=80',
+  QmKensingtonTownhouseVic: 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800&q=80',
+  QmManchesterCityCentreFl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&q=80',
+  QmEdinburghOldTownTeneme: 'https://images.unsplash.com/photo-1600596542815-ffad4c153b09?w=800&q=80',
+  QmBirminghamRetailParkBu: 'https://images.unsplash.com/photo-1554435493-93422e8220c8?w=800&q=80',
+  QmBristolHarboursidePent: 'https://images.unsplash.com/photo-1600607687939-ce8a6d79a41a?w=800&q=80',
+  QmLeedsIndustrialWarehou: 'https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=800&q=80',
+  QmOxfordStudentQuarterCo: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=80',
+  QmSurreyCountryEstateGui: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80',
+};
+
+function getPropertyImage(cid: string, tokenAddress: string): string {
+  const key = Object.keys(PROPERTY_IMAGES).find(k => cid.startsWith(k));
+  if (key) return PROPERTY_IMAGES[key];
+  return `https://picsum.photos/seed/${tokenAddress.slice(2, 8)}/400/220`;
+}
+
+function fmtSupply(n: bigint): string {
+  const v = Number(n);
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000)     return `${(v / 1_000).toFixed(0)}K`;
+  return v.toString();
+}
+
+function fmtUSD(rawUsdc: bigint, decimals = 6): string {
+  const usd = Number(formatUnits(rawUsdc, decimals));
+  if (usd >= 1_000_000) return `$${(usd / 1_000_000).toFixed(1)}M`;
+  if (usd >= 1_000)     return `$${(usd / 1_000).toFixed(0)}K`;
+  return `$${usd.toFixed(2)}`;
 }
 
 export default function OnChainPropertyCard({ tokenAddress }: { tokenAddress: `0x${string}` }) {
   const { data: meta, isLoading } = useReadContract({
     address: tokenAddress,
-    abi: PROPERTY_TOKEN_ABI,
-    functionName: 'propertyMetadata',
-    chainId: 80002,
+    abi: ASSET_TOKEN_ABI,
+    functionName: 'assetMetadata',
+    chainId: DEFAULT_CHAIN_ID,
   });
 
   const { data: statusRaw } = useReadContract({
     address: tokenAddress,
-    abi: PROPERTY_TOKEN_ABI,
-    functionName: 'propertyStatus',
-    chainId: 80002,
+    abi: ASSET_TOKEN_ABI,
+    functionName: 'paused',
+    chainId: DEFAULT_CHAIN_ID,
   });
 
   const { data: totalSupply } = useReadContract({
     address: tokenAddress,
-    abi: PROPERTY_TOKEN_ABI,
+    abi: ASSET_TOKEN_ABI,
     functionName: 'totalSupply',
-    chainId: 80002,
-  });
-
-  const { data: availableUnits } = useReadContract({
-    address: tokenAddress,
-    abi: PROPERTY_TOKEN_ABI,
-    functionName: 'availableUnits',
-    chainId: 80002,
+    chainId: DEFAULT_CHAIN_ID,
   });
 
   if (isLoading || !meta) {
@@ -60,25 +79,18 @@ export default function OnChainPropertyCard({ tokenAddress }: { tokenAddress: `0
     );
   }
 
-  const status    = typeof statusRaw === 'number' ? statusRaw : 0;
-  const typeLbl   = PROP_TYPE_LABELS[meta.propType] ?? 'Asset';
+  const status    = statusRaw === true ? 1 : 0;
+  const typeLbl   = ASSET_CATEGORY_LABELS[(meta as any)?.category ?? 0] ?? 'Asset';
+  const supply    = (totalSupply as bigint | undefined) ?? 0n;
 
-  // Funding progress
-  const sold = totalSupply && availableUnits ? totalSupply - availableUnits : 0n;
-  const pct  = totalSupply && totalSupply > 0n
-    ? Math.min(100, Math.round(Number((sold * 10000n) / totalSupply) / 100))
-    : 0;
-
-  // Choose badge: Sold Out overrides status if 100% tokens taken
-  const isSoldOut    = pct >= 100;
+  // Sold-out / coming-soon — based on status only (secondary-market funded% TBD)
+  const isSoldOut    = false;
   const isComingSoon = status === 0;
-  const badgeCls  = isSoldOut ? 'badge-red' : STATUS_BADGE[status] ?? 'badge-yellow';
-  const statusLbl = isSoldOut ? 'Sold Out' : STATUS_LABELS[status] ?? 'Unknown';
+  const badgeCls  = isComingSoon ? 'badge-yellow' : 'badge-green';
+  const statusLbl = isComingSoon ? 'Coming Soon' : 'Active';
 
-  // IPFS image
-  const imageUrl = meta.ipfsCID
-    ? `https://gateway.pinata.cloud/ipfs/${meta.ipfsCID}`
-    : `https://picsum.photos/seed/${tokenAddress.slice(2, 8)}/400/220`;
+  // IPFS image — use curated map for seed CIDs, fall back to IPFS gateway, then picsum
+  const imageUrl = getPropertyImage(meta.ipfsCID ?? '', tokenAddress);
 
   return (
     <Link href={`/properties/${tokenAddress}`} style={{ textDecoration: 'none' }}>
@@ -125,7 +137,7 @@ export default function OnChainPropertyCard({ tokenAddress }: { tokenAddress: `0
             borderRadius: 100, padding: '4px 10px',
             fontSize: 12, fontWeight: 700, color: '#fff',
           }}>
-            From {fmtGBP(meta.pricePerUnit)}
+            From {fmtUSD(meta.pricePerUnit)}
           </div>
         </div>
 
@@ -140,41 +152,33 @@ export default function OnChainPropertyCard({ tokenAddress }: { tokenAddress: `0
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
             <div style={{ textAlign: 'center' }}>
               <p style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Valuation</p>
-              <p style={{ fontSize: 14, fontWeight: 700 }}>{fmtGBP(meta.valuationUSD)}</p>
+              <p style={{ fontSize: 14, fontWeight: 700 }}>{fmtUSD(meta.valuationUSD)}</p>
             </div>
             <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Min. Buy</p>
-              <p style={{ fontSize: 14, fontWeight: 700 }}>{fmtGBP(meta.pricePerUnit)}</p>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Token Price</p>
+              <p style={{ fontSize: 14, fontWeight: 700 }}>{fmtUSD(meta.pricePerUnit)}</p>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Funded</p>
-              <p style={{ fontSize: 14, fontWeight: 700, color: pct >= 80 ? 'var(--green)' : undefined }}>{pct}%</p>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Total Supply</p>
+              <p style={{ fontSize: 14, fontWeight: 700, color: supply > 0n ? 'var(--green)' : undefined }}>
+                {supply > 0n ? fmtSupply(supply) : '—'}
+              </p>
             </div>
           </div>
 
-          {/* Funding bar */}
-          <div style={{ marginTop: 10 }}>
-            <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{
-                  width: `${pct}%`,
-                  background: isSoldOut ? 'var(--text-secondary)' : undefined,
-                }}
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-              <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Coins size={11} />
-                {isSoldOut ? 'Fully funded' : isComingSoon ? 'Opening soon' : `${pct}% sold`}
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                {tokenAddress.slice(0, 6)}…{tokenAddress.slice(-4)}
-              </span>
-            </div>
+          {/* Token address chip */}
+          <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Coins size={11} />
+              {isComingSoon ? 'Opening soon' : supply > 0n ? `${fmtSupply(supply)} tokens live` : 'Pending mint'}
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+              {tokenAddress.slice(0, 6)}…{tokenAddress.slice(-4)}
+            </span>
           </div>
         </div>
       </div>
     </Link>
   );
 }
+

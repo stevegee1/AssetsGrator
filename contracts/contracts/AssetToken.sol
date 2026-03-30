@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import "@tokenysolutions/t-rex/contracts/token/Token.sol";
 import "./interfaces/IAssetToken.sol";
+import "./interfaces/IFHEPortfolioRegistry.sol";
 
 /// @title AssetToken
 /// @notice ERC-3643 compliant security token representing fractional ownership
@@ -12,6 +13,7 @@ contract AssetToken is Token, IAssetToken {
 
     AssetMetadata private _metadata;
     AssetStatus   private _status;
+    address       public  portfolioRegistry;
 
     // ─── Modifiers ────────────────────────────────────────────────────────────
 
@@ -33,6 +35,7 @@ contract AssetToken is Token, IAssetToken {
     function initializeAsset(
         address identityRegistry_,
         address compliance_,
+        address portfolioRegistry_,
         AssetMetadata calldata metadata_
     ) external initializer {
         require(
@@ -66,6 +69,7 @@ contract AssetToken is Token, IAssetToken {
         _metadata           = metadata_;
         _metadata.createdAt = block.timestamp;
         _status             = AssetStatus.PENDING;
+        portfolioRegistry   = portfolioRegistry_;
     }
 
     // ─── IAssetToken Views ────────────────────────────────────────────────────
@@ -157,5 +161,32 @@ contract AssetToken is Token, IAssetToken {
 
         mint(treasury, _metadata.totalSupply * (10 ** 18));
         emit StatusChanged(AssetStatus.PENDING, AssetStatus.ACTIVE);
+    }
+
+    // ─── Shadow Sync Hooks ────────────────────────────────────────────────────
+
+    /// @dev Internal hook to catch every transfer and update the FHE registry.
+    function _transfer(address from, address to, uint256 amount) internal virtual override {
+        super._transfer(from, to, amount);
+        _sync(from);
+        _sync(to);
+    }
+
+    /// @dev Internal hook to catch every mint and update the FHE registry.
+    function _mint(address to, uint256 amount) internal virtual override {
+        super._mint(to, amount);
+        _sync(to);
+    }
+
+    /// @dev Internal hook to catch every burn and update the FHE registry.
+    function _burn(address from, uint256 amount) internal virtual override {
+        super._burn(from, amount);
+        _sync(from);
+    }
+
+    function _sync(address investor) internal {
+        if (portfolioRegistry != address(0) && investor != address(0)) {
+            IFHEPortfolioRegistry(portfolioRegistry).syncBalance(investor, balanceOf(investor));
+        }
     }
 }
