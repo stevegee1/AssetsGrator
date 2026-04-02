@@ -19,7 +19,7 @@ export default function Footer() {
             <span style={{ fontWeight: 800, fontSize: 17, color: '#fff' }}>AssetsGrator</span>
           </div>
           <p style={{ fontSize: 13, lineHeight: 1.7, marginBottom: '1rem', maxWidth: 240 }}>
-            Fractional real asset investment — transparent, compliant, and accessible from £5.
+            A regulated platform for tokenised real-world assets — KYC-gated, ERC-3643 compliant, and FHE-encrypted.
           </p>
           <address style={{ fontStyle: 'normal', fontSize: 13, lineHeight: 1.8 }}>
             20 Wenlock Road<br />
@@ -57,10 +57,10 @@ export default function Footer() {
         <div>
           <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', marginBottom: 12 }}>Legal</p>
           {[
-            ['Terms of Service', '#'],
-            ['Privacy Policy', '#'],
-            ['KYC Policy', '#'],
-            ['Risk Disclosure', '#'],
+            ['Terms of Service', '/legal/terms'],
+            ['Privacy Policy',   '/legal/privacy'],
+            ['KYC Policy',       '/legal/kyc'],
+            ['Risk Disclosure',  '/legal/risk-disclosure'],
           ].map(([label, href]) => (
             <div key={label} style={{ marginBottom: 8 }}>
               <Link href={href} style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{label}</Link>

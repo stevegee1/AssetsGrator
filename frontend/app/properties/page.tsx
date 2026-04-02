@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useReadContract } from 'wagmi';
-import { Search, SlidersHorizontal, Loader } from 'lucide-react';
+import Link from 'next/link';
+import { useReadContract, useAccount } from 'wagmi';
+import { Search, SlidersHorizontal, Loader, ShieldCheck, ArrowRight, Lock } from 'lucide-react';
 import { ASSET_FACTORY_ABI } from '@/lib/contracts/abis';
 import { useContractAddresses } from '@/lib/contracts/addresses';
 import OnChainPropertyCard from '@/components/property/OnChainPropertyCard';
@@ -10,7 +11,6 @@ import OnChainPropertyCard from '@/components/property/OnChainPropertyCard';
 const PROP_TYPES = ['All', 'Real Estate', 'Energy', 'Carbon', 'REC'] as const;
 
 // Wave-1 UK property token allowlist — filters out earlier test/Nigeria deployments.
-// Add new tokens here as they are seeded.
 const UK_TOKENS = new Set<string>([
   '0x1D907Ca5EaaD0b9C4fc239F27ae1787a1eac594E', // Mayfair Luxury Apartment
   '0x9B9b170c102E857B590d75bDE2870b7685A66639', // Canary Wharf Office Tower
@@ -24,7 +24,86 @@ const UK_TOKENS = new Set<string>([
   '0x379A84E4A2aE8D9c9926440fDBd1Fb3c7253181D', // Surrey Country Estate
 ].map(a => a.toLowerCase()));
 
-export default function PropertiesPage() {
+// ── Compliance Gate ──────────────────────────────────────────────────────────
+// Shown to any visitor who is not connected. Investment opportunities on this
+// platform are restricted to KYC-verified, approved investors under UK financial
+// regulation (FSMA 2000). The gate ensures no unauthenticated visitor can view
+// or access live deal data — satisfying the FCA's financial promotion rules.
+function ComplianceGate() {
+  return (
+    <div style={{
+      minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '4rem 1.25rem', background: 'var(--bg)',
+    }}>
+      <div style={{ textAlign: 'center', maxWidth: 520 }}>
+
+        {/* Icon */}
+        <div style={{
+          width: 80, height: 80, borderRadius: 20,
+          background: 'linear-gradient(135deg, #1e1b4b, #1e4080)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 1.75rem', boxShadow: '0 8px 32px rgba(37,99,235,0.25)',
+        }}>
+          <Lock size={36} color="#fff" />
+        </div>
+
+        {/* Badge */}
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)',
+          borderRadius: 100, padding: '4px 14px',
+          fontSize: 11, fontWeight: 700, color: 'var(--brand)',
+          letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '1.25rem',
+        }}>
+          <ShieldCheck size={11} /> Approved Investors Only
+        </span>
+
+        <h1 style={{ fontSize: '1.7rem', fontWeight: 800, marginBottom: '0.75rem' }}>
+          Restricted Access
+        </h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 15, lineHeight: 1.7, marginBottom: '1rem' }}>
+          This platform operates under the UK Financial Services and Markets Act 2000.
+          Investment opportunities are only accessible to verified, approved investors.
+        </p>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.7, marginBottom: '2rem' }}>
+          Connect your wallet and complete identity verification to request access.
+          All applications are reviewed against KYC / AML requirements and UK investor
+          classification rules before access is granted.
+        </p>
+
+        {/* CTAs */}
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link href="/kyc">
+            <button className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              Apply for Access <ArrowRight size={16} />
+            </button>
+          </Link>
+          <a
+            href="https://silk-parcel-39c.notion.site/AssetsGrator-2f1cb29cfeae80578d25eb78550a4f4b"
+            target="_blank" rel="noopener noreferrer"
+          >
+            <button className="btn btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              Read Whitepaper
+            </button>
+          </a>
+        </div>
+
+        {/* Disclaimer */}
+        <p style={{
+          marginTop: '2.5rem', fontSize: 11, color: 'var(--text-secondary)',
+          lineHeight: 1.6, maxWidth: 440, margin: '2.5rem auto 0',
+        }}>
+          AssetsGrator Ltd is incorporated in the United Kingdom. Tokenised assets issued
+          through this platform constitute securities. Access is restricted in accordance
+          with applicable UK and international financial regulation.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Listings (approved investors only) ──────────────────────────────────────
+function ListingsView() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<'newest' | 'val-desc' | 'val-asc'>('newest');
@@ -38,16 +117,20 @@ export default function PropertiesPage() {
     query: { refetchInterval: 15_000 },
   });
 
-  // Filter to only Wave-1 UK tokens
   const properties = ((allProperties ?? []) as `0x${string}`[])
     .filter(addr => UK_TOKENS.has(addr.toLowerCase()));
-
 
   return (
     <div>
       {/* Page header */}
       <div style={{ background: 'var(--white)', borderBottom: '1px solid var(--border)', padding: '1.75rem 0' }}>
         <div className="container">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <ShieldCheck size={16} color="var(--brand)" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              Approved Investor Access
+            </span>
+          </div>
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: 4 }}>Browse Assets</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
             {isLoading ? 'Loading…' : `${properties.length} asset${properties.length === 1 ? '' : 's'} available`}
@@ -56,7 +139,7 @@ export default function PropertiesPage() {
         </div>
       </div>
 
-      {/* ── Listings ──────────────────────────────────────────────────────── */}
+      {/* Listings */}
       <div id="listings-section" className="container" style={{ padding: '2rem 1.25rem' }}>
 
         {/* Search + filter bar */}
@@ -65,7 +148,6 @@ export default function PropertiesPage() {
             {isLoading ? 'Loading…' : `${properties.length} Asset${properties.length === 1 ? '' : 's'} Available`}
             <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 8 }}>· Live · Arbitrum Sepolia</span>
           </h2>
-          {/* Sort */}
           <select
             value={sortBy}
             onChange={e => setSortBy(e.target.value as typeof sortBy)}
@@ -107,7 +189,6 @@ export default function PropertiesPage() {
           </div>
         </div>
 
-        {/* Loading */}
         {isLoading && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem', gap: 10, color: 'var(--text-secondary)' }}>
             <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} />
@@ -115,7 +196,6 @@ export default function PropertiesPage() {
           </div>
         )}
 
-        {/* Empty state */}
         {!isLoading && properties.length === 0 && (
           <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>
             <p style={{ fontSize: 16, fontWeight: 600 }}>No assets deployed yet</p>
@@ -125,7 +205,6 @@ export default function PropertiesPage() {
           </div>
         )}
 
-        {/* Grid */}
         {!isLoading && properties.length > 0 && (
           <div className="grid-responsive">
             {properties
@@ -140,4 +219,16 @@ export default function PropertiesPage() {
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
+}
+
+// ── Page entry point ─────────────────────────────────────────────────────────
+export default function PropertiesPage() {
+  const { isConnected } = useAccount();
+
+  // Any visitor without a connected wallet sees the compliance gate.
+  // Full KYC approval check happens at the smart-contract level (ERC-3643)
+  // — this gate is the UX-layer first barrier.
+  if (!isConnected) return <ComplianceGate />;
+
+  return <ListingsView />;
 }

@@ -72,7 +72,7 @@ export default function LandingPage() {
             fontSize: 12, fontWeight: 600, color: '#fff', letterSpacing: '0.06em',
             textTransform: 'uppercase', marginBottom: '1.5rem',
           }}>
-            Real Asset · On-Chain + Legal Title Deed
+            Real Assets · Regulated · Encrypted
           </span>
 
           <h1 style={{
@@ -81,8 +81,6 @@ export default function LandingPage() {
           }}>
             Grow a Global, Digital<br />
             <span style={{
-              background: 'linear-gradient(90deg, #60c8ff, #a78bfa)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             }}>Real Asset Portfolio</span>
           </h1>
 
@@ -90,12 +88,32 @@ export default function LandingPage() {
             color: 'rgba(255,255,255,0.82)', fontSize: 'clamp(0.95rem, 2vw, 1.15rem)',
             lineHeight: 1.6, maxWidth: 600, margin: '0 auto 1.25rem',
           }}>
-            Fractional ownership of assets — blockchain-verified on-chain and backed by
-            off-chain legal title deeds. Buy from £5, receive income, and vote on asset decisions.
+            A regulated platform for fractional ownership of real-world assets —
+            ERC-3643 compliant, FHE-encrypted, and legally backed. Access is restricted
+            to KYC-verified, approved investors.
           </p>
 
+          {/* Asset class strip */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: '1.5rem' }}>
+            {[
+              { emoji: '🏢', label: 'Commercial Real Estate' },
+              { emoji: '☀️', label: 'Solar & Wind Energy' },
+              { emoji: '🌿', label: 'Carbon Credits' },
+              { emoji: '⚡', label: 'Renewable Energy Certs' },
+            ].map(a => (
+              <span key={a.label} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(6px)',
+                border: '1px solid rgba(255,255,255,0.15)', borderRadius: 100,
+                padding: '5px 13px', fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: 500,
+              }}>
+                {a.emoji} {a.label}
+              </span>
+            ))}
+          </div>
+
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginBottom: '2rem' }}>
-            {['✓ Own from £5', '✓ Earn income', '✓ Legally backed', '✓ Vote on how your assets are used and managed'].map(chip => (
+            {['✓ ERC-3643 Compliant', '✓ FHE-Encrypted Privacy', '✓ Legally Backed', '✓ KYC-Gated Access'].map(chip => (
               <span key={chip} style={{
                 background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)',
                 border: '1px solid rgba(255,255,255,0.2)', borderRadius: 100,
@@ -106,8 +124,8 @@ export default function LandingPage() {
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: '2.5rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
             {[
-              { value: '£5', label: 'Min. Investment' },
               { value: '100%', label: 'Legally Backed' },
+              { value: 'UK', label: 'Incorporated' },
             ].map(s => (
               <div key={s.label} style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff' }}>{s.value}</div>
@@ -117,9 +135,9 @@ export default function LandingPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/properties">
+            <Link href="/kyc">
               <button className="btn btn-primary btn-lg" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                Browse All Assets <ArrowRight size={17} />
+                Apply for Access <ArrowRight size={17} />
               </button>
             </Link>
             <a href="https://silk-parcel-39c.notion.site/AssetsGrator-2f1cb29cfeae80578d25eb78550a4f4b" target="_blank" rel="noopener noreferrer">
@@ -144,10 +162,10 @@ export default function LandingPage() {
               display: 'inline-flex', alignItems: 'center', gap: 6,
               background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.35)',
               borderRadius: 100, padding: '5px 16px',
-              fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.07em', textTransform: 'uppercase',
+              fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.07em',
               marginBottom: 14,
             }}>
-              <Lock size={10} /> Powered by CoFHE · Arbitrum Sepolia
+             Powered by CoFHE · Arbitrum Sepolia
             </span>
             <h2 style={{ fontSize: 'clamp(1.6rem, 4vw, 2.4rem)', fontWeight: 900, color: '#fff', marginBottom: 12 }}>
               FHE Privacy Stack
@@ -197,32 +215,21 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-
-          {/* FHE flow strip */}
-          <div style={{
-            marginTop: '3rem',
-            background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
-            borderRadius: 14, padding: '1.75rem 2rem',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 0, flexWrap: 'wrap',
-          }}>
-
-          </div>
         </div>
       </section>
 
       {/* ── HOW IT WORKS ─────────────────────────────────────────────────────── */}
       <section style={{ padding: '4rem 0', background: 'var(--bg)' }}>
         <div className="container">
-          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 8 }}>Simple Process</p>
-          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Start in Four Steps</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 15, marginBottom: '2.5rem' }}>From sign-up to earning income in minutes.</p>
+          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 8 }}>How Access Works</p>
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Four Steps to Approved Access</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 15, marginBottom: '2.5rem' }}>Platform access is gated — verified investors only.</p>
           <div className="grid-4">
             {[
-              { n: '01', title: 'Verify Identity', desc: 'Complete KYC once — encrypted via FHE so your identity data is never stored in plaintext on-chain. Takes under 5 minutes.' },
-              { n: '02', title: 'Browse UK Assets', desc: 'Explore UK properties, offices, and land. Review financials and legal documents backed by real title deeds.' },
-              { n: '03', title: 'Buy Tokens', desc: 'Purchase ERC-3643 ownership tokens from £5. Each token is your on-chain share of the asset.' },
-              { n: '04', title: 'Earn & Vote', desc: 'Receive income automatically. Vote on major asset decisions as a co-owner. Your portfolio stays private.' },
+              { n: '01', title: 'Verify Identity', desc: 'Complete KYC once — encrypted via FHE so your identity data is never stored in plaintext on-chain. Review takes under 48 hours.' },
+              { n: '02', title: 'Get Approved', desc: 'Applications are reviewed against UK investor classification and AML requirements. Approved wallets are whitelisted on-chain.' },
+              { n: '03', title: 'Access Deals', desc: 'Once approved, browse ERC-3643 tokenised assets. Each token represents a verified on-chain share of the underlying asset.' },
+              { n: '04', title: 'Govern & Receive', desc: 'Participate in governance votes as a co-owner. Revenue distributions flow on-chain proportional to verified token holdings.' },
             ].map(s => (
               <div key={s.n} className="card" style={{ padding: '1.5rem', borderRadius: 12, borderTop: '3px solid var(--brand)' }}>
                 <span style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--border)', display: 'block', marginBottom: 10 }}>{s.n}</span>
@@ -237,10 +244,10 @@ export default function LandingPage() {
       {/* ── REVENUE FLOW ─────────────────────────────────────────────────────── */}
       <section style={{ padding: '4rem 0', background: 'var(--white)', borderTop: '1px solid var(--border)' }}>
         <div className="container" style={{ textAlign: 'center' }}>
-          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 8 }}>How Income Works</p>
-          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Asset Revenue, Paid to You</h2>
+          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 8 }}>How Revenue Works</p>
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Asset Revenue Distribution</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: 15, marginBottom: '3rem' }}>
-            Rental and asset revenue flows automatically — fee rates managed by the FHEFeeManager.
+            Revenue from underlying assets flows on-chain to verified token holders — platform fees capped at 3%, managed transparently by the FHEFeeManager.
           </p>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 0 }}>
             {[
@@ -254,7 +261,7 @@ export default function LandingPage() {
               null,
               { emoji: '🪙', label: 'Your Token', sub: 'Auto-distributed' },
               null,
-              { emoji: '🏦', label: 'Your Wallet', sub: 'Withdraw anytime' },
+              { emoji: '🏦', label: 'Your Wallet', sub: 'On-chain' },
             ].map((item, i) => {
               if (item === null) return (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '0 4px' }}>
@@ -287,8 +294,8 @@ export default function LandingPage() {
             {[
               {
                 icon: Coins,
-                title: 'Fractional Ownership — From £5',
-                desc: 'Each asset is tokenised into ERC-3643 compliant security tokens. Buy as little as one token and start earning proportional rental income immediately.',
+                title: 'Fractional Ownership — ERC-3643',
+                desc: 'Each asset is tokenised into ERC-3643 compliant security tokens. Approved investors hold a verified on-chain share of the underlying asset.',
               },
               {
                 icon: Lock,
@@ -297,13 +304,13 @@ export default function LandingPage() {
               },
               {
                 icon: FileText,
-                title: 'Legal Deeds, Verified Off-Chain',
-                desc: 'Every asset is backed by real-world UK legal title deeds. Blockchain-verified ownership, with off-chain documentation available on request.',
+                title: 'Legally Documented, Off-Chain',
+                desc: 'Every asset is backed by verified off-chain legal instruments — title deeds for real estate, generation licences for energy projects, and VCS/RECS certification for carbon and renewable credits.',
               },
               {
                 icon: Users,
-                title: 'Governance & Income',
-                desc: 'Vote on asset decisions as a co-owner. Income distributions are automatic — receive rent and returns directly to your wallet based on your token share.',
+                title: 'Governance & Distributions',
+                desc: 'Approved token holders vote on asset decisions as co-owners. Revenue distributions flow automatically, proportional to verified on-chain holdings.',
               },
             ].map(f => (
               <div key={f.title} className="card" style={{ padding: '1.75rem', borderRadius: 12, display: 'flex', gap: 16 }}>
@@ -329,7 +336,7 @@ export default function LandingPage() {
           <div className="grid-3" style={{ gap: '1rem' }}>
             {[
               { icon: Lock,       title: 'FHE Privacy — 5 Contracts', desc: 'KYC, valuations, fees, portfolios, and loans protected by Fully Homomorphic Encryption on Arbitrum Sepolia.' },
-              { icon: Landmark,   title: 'UK Legal Title Deeds',       desc: 'Every listed UK asset is backed by off-chain legal ownership documentation and solicitor verification.' },
+              { icon: Landmark,   title: 'Legally Documented Assets',      desc: 'Each listed asset is backed by verified off-chain legal instruments — title deeds, generation licences, or VCS/RECS certification depending on asset class.' },
               { icon: Building2,  title: 'ERC-3643 Security Tokens',   desc: 'Industry-standard compliant security tokens with built-in KYC/AML compliance modules via T-REX.' },
             ].map(s => (
               <div key={s.title} className="card" style={{ padding: '1.5rem', borderRadius: 12, display: 'flex', gap: 14 }}>
@@ -350,33 +357,27 @@ export default function LandingPage() {
         background: 'linear-gradient(135deg, #0f0a2e, #1e1b4b, #1e4080)',
       }}>
         <div className="container" style={{ maxWidth: 640 }}>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.3)',
-            borderRadius: 100, padding: '5px 14px',
-            fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.06em',
-            textTransform: 'uppercase', marginBottom: 16,
-          }}>
-            <Lock size={10} /> FHE Buildathon Wave 1 · Live on Arbitrum Sepolia
-          </span>
           <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#fff', marginBottom: '0.75rem' }}>
-            Start Investing with Full Privacy
+            Apply as an Approved Investor
           </h2>
-          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 16, marginBottom: '2rem' }}>
-            The world's first FHE-powered real asset platform — KYC, valuations, and portfolios
-            stay encrypted. Your data never leaves the cipher.
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 16, marginBottom: '0.75rem' }}>
+            AssetsGrator is a regulated platform for verified investors. Complete identity verification
+            to request access — deals, allocations, and asset data are only visible to approved participants.
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginBottom: '2rem' }}>
+            Access is subject to KYC / AML review and investor classification under UK financial regulation.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/properties">
-              <button className="btn btn-primary btn-lg" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                Browse UK Assets <ArrowRight size={17} />
-              </button>
-            </Link>
             <Link href="/kyc">
-              <button className="btn btn-outline btn-lg" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.07)' }}>
-                Verify Identity
+              <button className="btn btn-primary btn-lg" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                Apply for Access <ArrowRight size={17} />
               </button>
             </Link>
+            <a href="https://silk-parcel-39c.notion.site/AssetsGrator-2f1cb29cfeae80578d25eb78550a4f4b" target="_blank" rel="noopener noreferrer">
+              <button className="btn btn-outline btn-lg" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.07)' }}>
+                Read Whitepaper
+              </button>
+            </a>
           </div>
         </div>
       </section>
