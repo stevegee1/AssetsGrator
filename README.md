@@ -6,6 +6,7 @@
 > **Contact:** [help@assetsgrator.com](mailto:help@assetsgrator.com)
 > **Incorporated:** United Kingdom
 > **Stack:** ERC-3643 · Fhenix CoFHE · Solidity 0.8.25 · Hardhat · Arbitrum Sepolia
+> **Whitepaper:** [businessplan.md](./businessplan.md)
 ---
 
 ## Table of Contents
