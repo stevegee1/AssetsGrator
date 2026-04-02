@@ -38,13 +38,16 @@ export default function Footer() {
             ['Browse Assets', '/properties'],
             ['My Portfolio', '/dashboard'],
             ['Governance', '/governance'],
-            ['Whitepaper', '/whitepaper'],
+            ['Whitepaper', 'https://silk-parcel-39c.notion.site/AssetsGrator-2f1cb29cfeae80578d25eb78550a4f4b'],
             ['Verify Identity', '/kyc'],
           ].map(([label, href]) => (
             <div key={href} style={{ marginBottom: 8 }}>
-              <Link href={href} style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', transition: 'color 0.15s' }}
+              <Link
+                href={href}
+                style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', transition: 'color 0.15s' }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
                 onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.65)')}
+                {...(href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
               >{label}</Link>
             </div>
           ))}

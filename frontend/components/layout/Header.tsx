@@ -13,7 +13,7 @@ const BASE_NAV = [
   { href: '/properties', label: 'Properties' },
   { href: '/dashboard',  label: 'My Portfolio' },
   { href: '/governance', label: 'Governance' },
-  { href: '/whitepaper', label: 'Whitepaper' },
+  { href: 'https://silk-parcel-39c.notion.site/AssetsGrator-2f1cb29cfeae80578d25eb78550a4f4b', label: 'Whitepaper', external: true },
 ];
 
 export default function Header() {
@@ -41,7 +41,7 @@ export default function Header() {
         {/* Desktop Nav */}
         <nav className="desktop-only" style={{ alignItems: 'center', gap: 4 }}>
           {nav.map(n => (
-            <Link key={n.href} href={n.href} className={`nav-link ${path.startsWith(n.href) ? 'active' : ''}`}>
+            <Link key={n.href} href={n.href} className={`nav-link ${!n.external && path.startsWith(n.href) ? 'active' : ''}`} {...(n.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
               {n.label}
             </Link>
           ))}
@@ -88,13 +88,14 @@ export default function Header() {
               key={n.href}
               href={n.href}
               onClick={() => setMenuOpen(false)}
+              {...(n.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
               style={{
                 display: 'block',
                 padding: '0.75rem 1.25rem',
                 fontSize: 15,
-                fontWeight: path.startsWith(n.href) ? 700 : 500,
-                color: path.startsWith(n.href) ? 'var(--brand)' : 'var(--text-primary)',
-                borderLeft: path.startsWith(n.href) ? '3px solid var(--brand)' : '3px solid transparent',
+                fontWeight: !n.external && path.startsWith(n.href) ? 700 : 500,
+                color: !n.external && path.startsWith(n.href) ? 'var(--brand)' : 'var(--text-primary)',
+                borderLeft: !n.external && path.startsWith(n.href) ? '3px solid var(--brand)' : '3px solid transparent',
                 transition: 'background 0.1s',
               }}
             >

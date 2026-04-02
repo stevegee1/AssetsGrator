@@ -122,7 +122,7 @@ export default function LandingPage() {
                 Browse All Assets <ArrowRight size={17} />
               </button>
             </Link>
-            <Link href="/whitepaper">
+            <a href="https://silk-parcel-39c.notion.site/AssetsGrator-2f1cb29cfeae80578d25eb78550a4f4b" target="_blank" rel="noopener noreferrer">
               <button style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)',
@@ -131,7 +131,7 @@ export default function LandingPage() {
               }}>
                 Read Whitepaper
               </button>
-            </Link>
+            </a>
           </div>
         </div>
       </section>
