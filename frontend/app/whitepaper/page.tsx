@@ -21,7 +21,7 @@ export default function WhitepaperPage() {
           <a href="mailto:help@assetsgrator.com" style={{ color: 'var(--brand)' }}>help@assetsgrator.com</a>
           {' '}for an early-access copy.
         </p>
-        <Link href="/properties">
+        <Link href="/assets">
           <button className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             Browse Assets <ArrowRight size={16} />
           </button>

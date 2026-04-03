@@ -10,7 +10,7 @@ import { Building2, Menu, X } from 'lucide-react';
 import { useIsAdmin } from '@/lib/hooks/useIsAdmin';
 
 const BASE_NAV = [
-  { href: '/properties', label: 'Properties' },
+  { href: '/assets', label: 'Assets' },
   { href: '/dashboard',  label: 'My Portfolio' },
   { href: '/governance', label: 'Governance' },
   { href: 'https://silk-parcel-39c.notion.site/AssetsGrator-2f1cb29cfeae80578d25eb78550a4f4b', label: 'Whitepaper', external: true },

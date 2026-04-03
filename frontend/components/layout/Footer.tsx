@@ -35,7 +35,7 @@ export default function Footer() {
         <div>
           <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', marginBottom: 12 }}>Platform</p>
           {[
-            ['Browse Assets', '/properties'],
+            ['Browse Assets', '/assets'],
             ['My Portfolio', '/dashboard'],
             ['Governance', '/governance'],
             ['Whitepaper', 'https://silk-parcel-39c.notion.site/AssetsGrator-2f1cb29cfeae80578d25eb78550a4f4b'],

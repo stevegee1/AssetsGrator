@@ -15,7 +15,7 @@ export default function PropertyCard({ p }: { p: Property }) {
   const typeLbl = { apartment: 'Apartment', office: 'Office', villa: 'Villa', commercial: 'Commercial', land: 'Raw Land' }[p.type];
 
   return (
-    <Link href={`/properties/${p.id}`}>
+    <Link href={`/assets/${p.id}`}>
       <div className="card" style={{ cursor: 'pointer', transition: 'box-shadow 0.15s', borderRadius: 10 }}
            onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)')}
            onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>

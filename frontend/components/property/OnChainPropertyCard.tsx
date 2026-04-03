@@ -93,7 +93,7 @@ export default function OnChainPropertyCard({ tokenAddress }: { tokenAddress: `0
   const imageUrl = getPropertyImage(meta.ipfsCID ?? '', tokenAddress);
 
   return (
-    <Link href={`/properties/${tokenAddress}`} style={{ textDecoration: 'none' }}>
+    <Link href={`/assets/${tokenAddress}`} style={{ textDecoration: 'none' }}>
       <div
         className="card"
         style={{

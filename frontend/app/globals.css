@@ -208,4 +208,69 @@ tr:hover td { background: var(--bg); }
   .sidebar-2fr { grid-template-columns: 1fr; }
 }
 
+/* ─── Hero Section ─────────────────────────────────────────────────────────── */
+.hero-section {
+  position: relative;
+  min-height: min(600px, 78vh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
+/* Hero CTA row — stacks full-width on mobile */
+.hero-ctas {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Section padding helpers */
+.section-pad    { padding: 4rem 0; }
+.section-pad-lg { padding: 5rem 0; }
+.section-pad-sm { padding: 3rem 0; }
+
+/* ─── Mobile overrides ──────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Hero: let it grow naturally — no clipping */
+  .hero-section {
+    min-height: auto;
+    padding: 3rem 0 3.5rem;
+    align-items: flex-start;
+  }
+
+  /* Hero content: tighter spacing on mobile */
+  .hero-badge    { margin-bottom: 1rem !important; }
+  .hero-h1       { margin-bottom: 0.9rem !important; }
+  .hero-sub      { margin-bottom: 0.9rem !important; font-size: 14px !important; }
+  .hero-chips    { margin-bottom: 1rem !important; }
+  .hero-trust    { margin-bottom: 1rem !important; }
+  .hero-stats    { margin-bottom: 1rem !important; gap: 1.5rem !important; }
+
+  /* CTA buttons: full width stacked */
+  .hero-ctas {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 0 0.5rem;
+  }
+  .hero-ctas a,
+  .hero-ctas > * { width: 100%; }
+  .hero-ctas .btn { width: 100%; justify-content: center; }
+
+  /* Section padding: shorter on mobile */
+  .section-pad    { padding: 2.5rem 0; }
+  .section-pad-lg { padding: 3rem 0; }
+  .section-pad-sm { padding: 2rem 0; }
+
+  /* Section headings: tighter */
+  .section-heading { font-size: 1.5rem !important; }
+  .section-subhead  { font-size: 14px !important; margin-bottom: 1.75rem !important; }
+
+  /* CTA banner: tighter */
+  .cta-banner-title { font-size: 1.5rem !important; }
+  .cta-banner-sub   { font-size: 14px !important; }
+
+  /* Feature card icon+text: stack vertically */
+  .feature-card { flex-direction: column !important; gap: 10px !important; }
+}
