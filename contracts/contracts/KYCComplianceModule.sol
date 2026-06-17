@@ -110,7 +110,7 @@ contract KYCComplianceModule is AbstractModule {
     /// @notice Called after a burn
     function moduleBurnAction(
         address _from,
-        uint256 _value
+        uint256 /*_value*/
     ) external override onlyComplianceCall {
         address compliance = msg.sender;
         address token = IModularCompliance(compliance).getTokenBound();
@@ -137,7 +137,7 @@ contract KYCComplianceModule is AbstractModule {
     /// @inheritdoc IModule
     function canComplianceBind(
         address /*_compliance*/
-    ) external view override returns (bool) {
+    ) external pure override returns (bool) {
         return true;
     }
 

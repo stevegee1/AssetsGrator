@@ -19,7 +19,7 @@ export default function Footer() {
             <span style={{ fontWeight: 800, fontSize: 17, color: '#fff' }}>AssetsGrator</span>
           </div>
           <p style={{ fontSize: 13, lineHeight: 1.7, marginBottom: '1rem', maxWidth: 240 }}>
-            Fractional real asset investment — transparent, compliant, and accessible from £5.
+            A regulated platform for tokenised real-world assets — KYC-gated and ERC-3643 compliant.
           </p>
           <address style={{ fontStyle: 'normal', fontSize: 13, lineHeight: 1.8 }}>
             20 Wenlock Road<br />
@@ -35,16 +35,19 @@ export default function Footer() {
         <div>
           <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', marginBottom: 12 }}>Platform</p>
           {[
-            ['Browse Assets', '/properties'],
+            ['Browse Assets', '/assets'],
             ['My Portfolio', '/dashboard'],
             ['Governance', '/governance'],
-            ['Whitepaper', '/whitepaper'],
+            ['Whitepaper', 'https://silk-parcel-39c.notion.site/AssetsGrator-2f1cb29cfeae80578d25eb78550a4f4b'],
             ['Verify Identity', '/kyc'],
           ].map(([label, href]) => (
             <div key={href} style={{ marginBottom: 8 }}>
-              <Link href={href} style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', transition: 'color 0.15s' }}
+              <Link
+                href={href}
+                style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', transition: 'color 0.15s' }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
                 onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.65)')}
+                {...(href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
               >{label}</Link>
             </div>
           ))}
@@ -54,10 +57,10 @@ export default function Footer() {
         <div>
           <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', marginBottom: 12 }}>Legal</p>
           {[
-            ['Terms of Service', '#'],
-            ['Privacy Policy', '#'],
-            ['KYC Policy', '#'],
-            ['Risk Disclosure', '#'],
+            ['Terms of Service', '/legal/terms'],
+            ['Privacy Policy',   '/legal/privacy'],
+            ['KYC Policy',       '/legal/kyc'],
+            ['Risk Disclosure',  '/legal/risk-disclosure'],
           ].map(([label, href]) => (
             <div key={label} style={{ marginBottom: 8 }}>
               <Link href={href} style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{label}</Link>
@@ -96,7 +99,7 @@ export default function Footer() {
       {/* Bottom bar */}
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', padding: '1rem 1.25rem' }}>
         <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
-          © 2026 AssetsGrator Ltd. All transactions recorded on Polygon blockchain. Investments involve risk — capital at risk.
+          © 2026 AssetsGrator Ltd. All transactions recorded on Arbitrum blockchain. Investments involve risk — capital at risk.
         </p>
       </div>
     </footer>

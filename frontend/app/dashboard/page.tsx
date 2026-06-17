@@ -5,25 +5,24 @@ import { Coins, TrendingUp, Building2, AlertCircle, Loader2, Wallet } from 'luci
 import Link from 'next/link';
 import { useDashboard } from '@/lib/hooks/useDashboard';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { PROPERTY_TREASURY_ABI } from '@/lib/contracts/abis';
 
 // ── Format helpers ────────────────────────────────────────────────────────────
-// All on-chain USDC values are 6-decimal (e.g. 1_000_000n = $1.00)
-function fmtUsdc(raw: bigint): string {
+// All on-chain GBP values are 6-decimal (e.g. 1_000_000n = £1.00)
+function fmtGBP(raw: bigint): string {
   const n = Number(raw) / 1_000_000;
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
 }
-// pricePerUnit is 18-decimal USD (e.g. 500_000n * 1e18 = $500,000 per unit)
+// pricePerUnit is 18-decimal GBP (e.g. 500_000n * 1e18 = £500,000 per unit)
 function fmtPrice(raw: bigint): string {
   const n = Number(raw) / 1e18;
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
 }
 function fmtUnits(units: bigint): string {
   return Number(units).toLocaleString();
 }
 
 export default function DashboardPage() {
-  const { holdings, totalValueUsdc, totalClaimable, isKYCVerified, isLoading, walletConnected } = useDashboard();
+  const { holdings, totalValueUsd, totalClaimable, isKYCVerified, isLoading, walletConnected } = useDashboard();
   const [redeemingToken, setRedeemingToken] = useState<`0x${string}` | null>(null);
 
   const { writeContract, data: txHash, isPending } = useWriteContract();
@@ -35,9 +34,14 @@ export default function DashboardPage() {
     if (!redeemingHolding?.treasuryAddress || redeemingHolding.units === 0n) return;
     writeContract({
       address: redeemingHolding.treasuryAddress,
-      abi: PROPERTY_TREASURY_ABI,
-      functionName: 'redeem',
-      args: [redeemingHolding.units],
+      abi: [{
+        name: 'claimRevenue',
+        type: 'function',
+        stateMutability: 'nonpayable',
+        inputs: [],
+        outputs: [],
+      }] as const,
+      functionName: 'claimRevenue',
     });
   };
 
@@ -50,7 +54,7 @@ export default function DashboardPage() {
             <h1 style={{ fontSize: '1.75rem', marginBottom: 4 }}>My Portfolio</h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Track your investments and claim rental income</p>
           </div>
-          <Link href="/properties"><button className="btn btn-primary">Browse Properties</button></Link>
+          <Link href="/assets"><button className="btn btn-primary">Browse Assets</button></Link>
         </div>
       </div>
 
@@ -96,8 +100,8 @@ export default function DashboardPage() {
                   {[
                     { label: 'Properties Held', value: String(holdings.length), icon: Building2 },
                     { label: 'Total Units', value: holdings.reduce((s, h) => s + h.units, 0n).toLocaleString(), icon: Coins },
-                    { label: 'Portfolio Value', value: fmtUsdc(totalValueUsdc), icon: TrendingUp, highlight: true },
-                    { label: 'Claimable (est.)', value: fmtUsdc(totalClaimable), icon: Coins, green: true },
+                    { label: 'Portfolio Value', value: fmtGBP(totalValueUsd / 10n**12n), icon: TrendingUp, highlight: true },
+                    { label: 'Claimable (est.)', value: fmtGBP(totalClaimable), icon: Coins, green: true },
                   ].map((s, i) => (
                     <div key={i} className="stat-box" style={{ borderRight: i < 3 ? '1px solid var(--border)' : undefined }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -116,7 +120,7 @@ export default function DashboardPage() {
                 {holdings.length === 0 ? (
                   <div className="card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                     <Building2 size={32} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
-                    <p>No holdings yet. <Link href="/properties" style={{ color: 'var(--brand)' }}>Browse properties →</Link></p>
+                    <p>No holdings yet. <Link href="/assets" style={{ color: 'var(--brand)' }}>Browse assets →</Link></p>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '2rem' }}>
@@ -129,19 +133,19 @@ export default function DashboardPage() {
                             <div style={{ display: 'flex', gap: '1.5rem', fontSize: 13, flexWrap: 'wrap' }}>
                               <div><span style={{ color: 'var(--text-secondary)' }}>Units: </span><strong>{fmtUnits(h.units)}</strong></div>
                               <div><span style={{ color: 'var(--text-secondary)' }}>Price/unit: </span><strong>{fmtPrice(h.pricePerUnit)}</strong></div>
-                              <div><span style={{ color: 'var(--text-secondary)' }}>Value: </span><strong style={{ color: 'var(--green)' }}>{fmtUsdc(h.currentValueUsdc)}</strong></div>
+                              <div><span style={{ color: 'var(--text-secondary)' }}>Value: </span><strong style={{ color: 'var(--green)' }}>{fmtGBP(h.currentValueUsd / 10n**12n)}</strong></div>
                             </div>
                           </div>
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 2 }}>Est. Redeemable</p>
-                            <p style={{ fontWeight: 800, fontSize: 17, color: 'var(--brand)' }}>{fmtUsdc(h.claimableUsdc)}</p>
+                            <p style={{ fontWeight: 800, fontSize: 17, color: 'var(--brand)' }}>{fmtGBP(h.claimableUsdc)}</p>
                             <button
                               className="btn btn-primary btn-sm"
                               style={{ marginTop: 6 }}
                               onClick={() => setRedeemingToken(h.tokenAddress)}
                               disabled={h.claimableUsdc === 0n || !isKYCVerified}
                             >
-                              Redeem Tokens
+                              Claim Revenue
                             </button>
                           </div>
                         </div>
@@ -152,7 +156,7 @@ export default function DashboardPage() {
 
                 {/* Note about rent distribution */}
                 <div style={{ background: 'var(--brand-light)', border: '1px solid rgba(26,111,168,0.15)', borderRadius: 8, padding: '0.75rem 1rem', fontSize: 13, color: 'var(--brand)' }}>
-                  💡 <strong>Rental income</strong> is deposited by the property manager into each property's treasury. The "Est. Redeemable" value reflects your proportional share of current USDC held.
+                  💡 <strong>Revenue</strong> is deposited by the asset manager into each asset's treasury. The "Est. Redeemable" value reflects your proportional share of current GBP held.
                 </div>
               </>
             )}
@@ -167,16 +171,16 @@ export default function DashboardPage() {
             <h3 style={{ marginBottom: 8 }}>Redeem Tokens</h3>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
               Redeeming <strong>{fmtUnits(redeemingHolding.units)}</strong> units of <strong>{redeemingHolding.name}</strong>.
-              Tokens return to the treasury and you receive USDC.
+              Tokens return to the treasury and you receive GBP.
             </p>
             <div style={{ background: 'var(--brand-light)', borderRadius: 8, padding: '1rem', marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Gross value</span>
-                <strong>{fmtUsdc(redeemingHolding.claimableUsdc)}</strong>
+                <strong>{fmtGBP(redeemingHolding.claimableUsdc)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>You receive (net)</span>
-                <strong style={{ color: 'var(--brand)' }}>{fmtUsdc(redeemingHolding.claimableUsdc)}</strong>
+                <strong style={{ color: 'var(--brand)' }}>{fmtGBP(redeemingHolding.claimableUsdc)}</strong>
               </div>
             </div>
             {redeemSuccess && (

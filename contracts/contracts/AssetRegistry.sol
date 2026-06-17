@@ -154,12 +154,10 @@ contract AssetRegistry is OwnableUpgradeable {
         }
     }
 
-    /// @notice Total platform TVL in USD — returns 0 for assets with permit-gated valuation.
-    ///         To see the full TVL: owner must call allowPublicValuation() on each asset first.
+    /// @notice Total platform TVL in USD
     function getPlatformTVL() external view returns (uint256 tvl) {
         address[] memory all = factory.getAllAssets();
         for (uint256 i = 0; i < all.length; i++) {
-            // valuationUSD() returns 0 if FHE decryption result is not yet published
             tvl += AssetToken(all[i]).valuationUSD();
         }
     }

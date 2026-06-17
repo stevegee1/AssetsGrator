@@ -31,8 +31,8 @@ export async function POST(req: NextRequest) {
 
   const params: Record<string, string> = {
     apiKey: TRANSAK_API_KEY,
-    cryptoCurrencyCode: "USDC",
-    network: "polygon",
+    cryptoCurrencyCode: "GBPT",
+    network: "arbitrum",
     fiatCurrency,
     defaultFiatAmount: String(defaultFiatAmount),
     themeColor: "2563eb",

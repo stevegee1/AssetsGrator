@@ -18,7 +18,7 @@ export default function GovernancePage() {
         <div className="container">
           <h1 style={{ fontSize: '1.75rem', marginBottom: 4 }}>Governance</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-            Token holders vote on property decisions. 1 token = 1 vote.
+            Token holders vote on platform decisions. 1 token = 1 vote.
           </p>
         </div>
       </div>

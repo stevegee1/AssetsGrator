@@ -10,13 +10,11 @@ import "@tokenysolutions/t-rex/contracts/registry/interface/IIdentityRegistry.so
 import "@tokenysolutions/t-rex/contracts/token/IToken.sol";
 
 import "./AssetToken.sol";
+import "./interfaces/IFeeManager.sol";
 
 /// @title AssetTreasury
-/// @notice Per-asset USDC vault. Handles revenue distribution, maintenance reserve,
+/// @notice Per-asset payment token vault. Handles revenue distribution, maintenance reserve,
 ///         and investor redemptions with plaintext fee rates.
-///
-/// FHE Note: Fee rates are kept as plaintext uint256 here. Encrypted fee management
-///           is handled by the standalone FHEFeeManager contract in contracts/fhe/.
 contract AssetTreasury is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -25,22 +23,19 @@ contract AssetTreasury is Ownable, ReentrancyGuard {
 
     // ─── Immutables ───────────────────────────────────────────────────────────
     AssetToken public immutable assetToken;
-    IERC20     public immutable usdc;
-
-    uint256 public immutable platformRevenueBps;
-    uint256 public immutable maintenanceReserveBps;
-    uint256 public immutable exitFeeBps;
-
-    // ─── Mutable state ────────────────────────────────────────────────────────
-    address public platformWallet;
+    IERC20     public immutable paymentToken;
+    address    public immutable feeManager;
     address public governanceContract;
     uint256 public maintenanceReserveBalance;
     uint256 public totalMaintenanceAllocated;
     uint256 public totalMaintenanceSpent;
 
+    // ─── Mutable state ────────────────────────────────────────────────────────
+    address public platformWallet;
+
     // ─── Events ───────────────────────────────────────────────────────────────
     event RevenueDistributed(uint256 platformCut, uint256 maintenanceCut, uint256 netYield);
-    event TokensRedeemed(address indexed investor, uint256 netUsdc);
+    event TokensRedeemed(address indexed investor, uint256 netAmount);
     event MaintenanceSpent(address indexed to, uint256 amount, string reason);
     event PlatformWalletUpdated(address indexed oldWallet, address indexed newWallet);
     event GovernanceContractUpdated(address indexed oldGov, address indexed newGov);
@@ -55,30 +50,20 @@ contract AssetTreasury is Ownable, ReentrancyGuard {
 
     constructor(
         address assetToken_,
-        address usdc_,
+        address paymentToken_,
         address platformWallet_,
-        uint256 platformRevenueBps_,
-        uint256 maintenanceReserveBps_,
-        uint256 exitFeeBps_,
+        address feeManager_,
         address owner_
     ) {
-        require(assetToken_ != address(0),    "Treasury: zero token");
-        require(usdc_ != address(0),           "Treasury: zero usdc");
+        require(assetToken_   != address(0),   "Treasury: zero token");
+        require(paymentToken_ != address(0),   "Treasury: zero payment token");
         require(platformWallet_ != address(0), "Treasury: zero wallet");
-        require(platformRevenueBps_ <= MAX_FEE_BPS,    "Treasury: platform fee too high");
-        require(maintenanceReserveBps_ <= MAX_FEE_BPS, "Treasury: maintenance fee too high");
-        require(exitFeeBps_ <= MAX_FEE_BPS,            "Treasury: exit fee too high");
-        require(
-            platformRevenueBps_ + maintenanceReserveBps_ <= 5_000,
-            "Treasury: combined fees exceed 50%"
-        );
+        require(feeManager_    != address(0),   "Treasury: zero fee manager");
 
-        assetToken             = AssetToken(assetToken_);
-        usdc                   = IERC20(usdc_);
-        platformWallet         = platformWallet_;
-        platformRevenueBps      = platformRevenueBps_;
-        maintenanceReserveBps   = maintenanceReserveBps_;
-        exitFeeBps             = exitFeeBps_;
+        assetToken   = AssetToken(assetToken_);
+        paymentToken = IERC20(paymentToken_);
+        platformWallet = platformWallet_;
+        feeManager   = feeManager_;
 
         _transferOwnership(owner_);
     }
@@ -88,13 +73,14 @@ contract AssetTreasury is Ownable, ReentrancyGuard {
     /// @notice Deposit revenue and split between platform, maintenance, and net yield
     function depositRevenue(uint256 grossAmount) external nonReentrant {
         require(grossAmount > 0, "Treasury: zero revenue");
-        usdc.safeTransferFrom(msg.sender, address(this), grossAmount);
+        paymentToken.safeTransferFrom(msg.sender, address(this), grossAmount);
 
-        uint256 platformCut    = (grossAmount * platformRevenueBps) / 10_000;
-        uint256 maintenanceCut = (grossAmount * maintenanceReserveBps) / 10_000;
+        IFeeManager fm      = IFeeManager(feeManager);
+        uint256 platformCut    = fm.computePlatformCutPlaintext(grossAmount);
+        uint256 maintenanceCut = fm.computeMaintenanceCutPlaintext(grossAmount);
         uint256 netYield       = grossAmount - platformCut - maintenanceCut;
 
-        if (platformCut > 0) usdc.safeTransfer(platformWallet, platformCut);
+        if (platformCut > 0) paymentToken.safeTransfer(platformWallet, platformCut);
 
         maintenanceReserveBalance += maintenanceCut;
         totalMaintenanceAllocated += maintenanceCut;
@@ -122,13 +108,13 @@ contract AssetTreasury is Ownable, ReentrancyGuard {
 
         maintenanceReserveBalance -= amount;
         totalMaintenanceSpent += amount;
-        usdc.safeTransfer(to, amount);
+        paymentToken.safeTransfer(to, amount);
         emit MaintenanceSpent(to, amount, reason);
     }
 
     // ─── Investor Redemption ──────────────────────────────────────────────────
 
-    /// @notice KYC-verified investor redeems fractional units for USDC
+    /// @notice KYC-verified investor redeems fractional units for payment tokens
     function redeem(uint256 units) external nonReentrant {
         require(units > 0, "Treasury: zero units");
 
@@ -142,30 +128,30 @@ contract AssetTreasury is Ownable, ReentrancyGuard {
         );
 
         uint256 pricePerUnit_ = assetToken.pricePerUnit();
-        uint256 grossUsdc     = (units * pricePerUnit_) / 1e12;
-        uint256 fee           = (grossUsdc * exitFeeBps) / 10_000;
-        uint256 netUsdc       = grossUsdc - fee;
+        uint256 grossAmount   = (units * pricePerUnit_) / 1e12;
 
-        uint256 available = usdc.balanceOf(address(this)) - maintenanceReserveBalance;
-        require(available >= grossUsdc, "Treasury: insufficient USDC");
+        uint256 fee = IFeeManager(feeManager).computeExitFeePlaintext(grossAmount);
+        uint256 netAmount = grossAmount - fee;
+        uint256 available = paymentToken.balanceOf(address(this)) - maintenanceReserveBalance;
+        require(available >= grossAmount, "Treasury: insufficient balance");
 
         uint256 amount = units * (10 ** 18);
         IToken(address(assetToken)).transferFrom(msg.sender, address(this), amount);
 
-        usdc.safeTransfer(msg.sender, netUsdc);
-        if (fee > 0) usdc.safeTransfer(platformWallet, fee);
+        paymentToken.safeTransfer(msg.sender, netAmount);
+        if (fee > 0) paymentToken.safeTransfer(platformWallet, fee);
 
-        emit TokensRedeemed(msg.sender, netUsdc);
+        emit TokensRedeemed(msg.sender, netAmount);
     }
 
     // ─── Views ────────────────────────────────────────────────────────────────
 
-    function usdcBalance() external view returns (uint256) {
-        return usdc.balanceOf(address(this));
+    function paymentTokenBalance() external view returns (uint256) {
+        return paymentToken.balanceOf(address(this));
     }
 
     function availableForRedemption() external view returns (uint256) {
-        uint256 total = usdc.balanceOf(address(this));
+        uint256 total = paymentToken.balanceOf(address(this));
         return total > maintenanceReserveBalance ? total - maintenanceReserveBalance : 0;
     }
 
@@ -191,8 +177,8 @@ contract AssetTreasury is Ownable, ReentrancyGuard {
 
     function emergencyWithdraw(address to, uint256 amount) external onlyOwner {
         require(to != address(0), "Treasury: zero address");
-        uint256 available = usdc.balanceOf(address(this)) - maintenanceReserveBalance;
+        uint256 available = paymentToken.balanceOf(address(this)) - maintenanceReserveBalance;
         require(amount <= available, "Treasury: cannot withdraw reserved funds");
-        usdc.safeTransfer(to, amount);
+        paymentToken.safeTransfer(to, amount);
     }
 }

@@ -1,60 +1,28 @@
-"use client";
+'use client';
+
+/**
+ * useMarketplace — reads and writes against AssetMarketplace.sol
+ *
+ * The marketplace handles secondary P2P trading of AssetToken shares.
+ * Payment is in USDC (ERC-20), not native ETH/MATIC.
+ */
 
 import {
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
-} from "wagmi";
-import { parseEther } from "viem";
-import { MARKETPLACE_ABI } from "@/lib/contracts/abis";
-import { ADDRESSES } from "@/lib/contracts/addresses";
-import { useChainId } from "wagmi";
+} from 'wagmi';
+import { ASSET_MARKETPLACE_ABI, USDC_ABI } from '@/lib/contracts/abis';
+import { useContractAddresses } from '@/lib/contracts/addresses';
 
-function useMarketplaceAddress() {
-  const chainId = useChainId();
-  return chainId === 80001 || chainId === 80002
-    ? ADDRESSES.mumbai.PROPERTY_MARKETPLACE
-    : ADDRESSES.polygon.PROPERTY_MARKETPLACE;
-}
-
-/**
- * useBuyFromIssuance — buy units from primary market (treasury → buyer)
- * Payment is in native MATIC (payable call).
- */
-export function useBuyFromIssuance() {
-  const marketplaceAddr = useMarketplaceAddress();
-  const { writeContract, data: hash, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  });
-
-  const buy = (
-    tokenAddress: `0x${string}`,
-    units: bigint,
-    maticValue: bigint,
-  ) => {
-    writeContract({
-      address: marketplaceAddr,
-      abi: MARKETPLACE_ABI,
-      functionName: "buyFromIssuance",
-      args: [tokenAddress, units],
-      value: maticValue,
-    });
-  };
-
-  return { buy, isPending, isConfirming, isSuccess, hash };
-}
-
-/**
- * useActiveListings — get all secondary market listing IDs for a token.
- */
+/** Get all active listing IDs for a given asset token */
 export function useActiveListings(tokenAddress: `0x${string}` | undefined) {
-  const marketplaceAddr = useMarketplaceAddress();
+  const { ASSET_MARKETPLACE } = useContractAddresses();
 
   const { data: listingIds, isLoading } = useReadContract({
-    address: marketplaceAddr,
-    abi: MARKETPLACE_ABI,
-    functionName: "getActiveListings",
+    address: ASSET_MARKETPLACE,
+    abi: ASSET_MARKETPLACE_ABI,
+    functionName: 'getActiveListings',
     args: tokenAddress ? [tokenAddress] : undefined,
     query: { enabled: !!tokenAddress },
   });
@@ -62,16 +30,14 @@ export function useActiveListings(tokenAddress: `0x${string}` | undefined) {
   return { listingIds: (listingIds ?? []) as bigint[], isLoading };
 }
 
-/**
- * useListing — get a single listing by ID.
- */
+/** Get a single listing by ID */
 export function useListing(listingId: bigint | undefined) {
-  const marketplaceAddr = useMarketplaceAddress();
+  const { ASSET_MARKETPLACE } = useContractAddresses();
 
   const { data: listing, isLoading } = useReadContract({
-    address: marketplaceAddr,
-    abi: MARKETPLACE_ABI,
-    functionName: "getListing",
+    address: ASSET_MARKETPLACE,
+    abi: ASSET_MARKETPLACE_ABI,
+    functionName: 'getListing',
     args: listingId !== undefined ? [listingId] : undefined,
     query: { enabled: listingId !== undefined },
   });
@@ -81,54 +47,87 @@ export function useListing(listingId: bigint | undefined) {
 
 /**
  * useCreateListing — list units on the secondary market.
- * Seller must approve the marketplace to spend their tokens first.
+ * Seller must first approve the marketplace to transfer their tokens.
  */
 export function useCreateListing() {
-  const marketplaceAddr = useMarketplaceAddress();
-  const { writeContract, data: hash, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  });
+  const { ASSET_MARKETPLACE } = useContractAddresses();
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   const createListing = (
     tokenAddress: `0x${string}`,
     units: bigint,
-    pricePerUnit: bigint,
+    pricePerUnitUsdc: bigint, // 6-decimal USDC
   ) => {
     writeContract({
-      address: marketplaceAddr,
-      abi: MARKETPLACE_ABI,
-      functionName: "createListing",
-      args: [tokenAddress, units, pricePerUnit],
+      address: ASSET_MARKETPLACE,
+      abi: ASSET_MARKETPLACE_ABI,
+      functionName: 'createListing',
+      args: [tokenAddress, units, pricePerUnitUsdc],
     });
   };
 
-  return { createListing, isPending, isConfirming, isSuccess, hash };
+  return { createListing, isPending, isConfirming, isSuccess, hash, error };
 }
 
 /**
- * useFillListing — buy from a secondary market listing.
+ * useCancelListing — cancel an existing listing (seller only).
  */
-export function useFillListing() {
-  const marketplaceAddr = useMarketplaceAddress();
-  const { writeContract, data: hash, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  });
+export function useCancelListing() {
+  const { ASSET_MARKETPLACE } = useContractAddresses();
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  const fillListing = (
-    listingId: bigint,
-    units: bigint,
-    maticValue: bigint,
-  ) => {
+  const cancelListing = (listingId: bigint) => {
     writeContract({
-      address: marketplaceAddr,
-      abi: MARKETPLACE_ABI,
-      functionName: "fillListing",
-      args: [listingId, units],
-      value: maticValue,
+      address: ASSET_MARKETPLACE,
+      abi: ASSET_MARKETPLACE_ABI,
+      functionName: 'cancelListing',
+      args: [listingId],
     });
   };
 
-  return { fillListing, isPending, isConfirming, isSuccess, hash };
+  return { cancelListing, isPending, isConfirming, isSuccess, hash, error };
+}
+
+/**
+ * usePurchaseListing — buy from a secondary market listing.
+ * Buyer must first approve USDC spend on the marketplace contract.
+ */
+export function usePurchaseListing() {
+  const { ASSET_MARKETPLACE } = useContractAddresses();
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const purchase = (listingId: bigint, units: bigint) => {
+    writeContract({
+      address: ASSET_MARKETPLACE,
+      abi: ASSET_MARKETPLACE_ABI,
+      functionName: 'fillListing',
+      args: [listingId, units],
+    });
+  };
+
+  return { purchase, isPending, isConfirming, isSuccess, hash, error };
+}
+
+/**
+ * useApproveUSDC — approve the marketplace to spend USDC on behalf of buyer.
+ * Call this before purchase().
+ */
+export function useApproveUSDC() {
+  const { USDC, ASSET_MARKETPLACE } = useContractAddresses();
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const approve = (amountUsdc: bigint) => {
+    writeContract({
+      address: USDC,
+      abi: USDC_ABI,
+      functionName: 'approve',
+      args: [ASSET_MARKETPLACE, amountUsdc],
+    });
+  };
+
+  return { approve, isPending, isConfirming, isSuccess, hash, error };
 }

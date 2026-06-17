@@ -1,5 +1,4 @@
 require("@nomicfoundation/hardhat-toolbox");
-require("@cofhe/hardhat-plugin");
 
 // Load .env manually using Node built-ins (no dotenv package required)
 const fs = require("fs");
@@ -25,19 +24,9 @@ module.exports = {
   solidity: {
     compilers: [
       {
-        // FHE contracts — requires cofhe-contracts >= 0.8.25, evmVersion cancun
-        // (cancun needed for transient storage opcodes used by coFHE protocol)
-        version: "0.8.28",
-        settings: {
-          optimizer: { enabled: true, runs: 1 },
-          viaIR: true,
-          evmVersion: "cancun",
-        },
-      },
-      {
         version: "0.8.20",
         settings: {
-          optimizer: { enabled: true, runs: 1 },
+          optimizer: { enabled: true, runs: 200 },
           viaIR: true,
         },
       },
@@ -46,6 +35,7 @@ module.exports = {
         version: "0.8.17",
         settings: {
           optimizer: { enabled: true, runs: 200 },
+          viaIR: true,
         },
       },
     ],
@@ -53,50 +43,27 @@ module.exports = {
   networks: {
     hardhat: {
       chainId: 31337,
+      allowUnlimitedContractSize: true,
     },
-    // ── Fhenix Testnet ──────────────────────────────────────────────────────
-    fhenix: {
-      url: process.env.FHENIX_RPC_URL || "https://api.nitrogen.fhenix.zone",
+    // ── Arbitrum Sepolia — primary deployment target ────────────────────────
+    arbitrumSepolia: {
+      url: process.env.ARBITRUM_SEPOLIA_RPC_URL,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 8008135,
-    },
-    // ── Polygon Amoy Testnet (active testnet as of 2024) ──
-    amoy: {
-      url:
-        process.env.POLYGON_AMOY_RPC_URL ||
-        "https://rpc-amoy.polygon.technology",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 80002,
-      gasPrice: "auto",
-    },
-    // ── Legacy Mumbai (deprecated) ──
-    mumbai: {
-      url:
-        process.env.POLYGON_MUMBAI_RPC_URL ||
-        "https://rpc-mumbai.maticvigil.com",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 80001,
-    },
-    // ── Polygon Mainnet ──
-    polygon: {
-      url: process.env.POLYGON_MAINNET_RPC_URL || "https://polygon-rpc.com",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 137,
+      chainId: 421614,
+      timeout: 300_000,  // 5 min — handles slow mobile connections
     },
   },
   etherscan: {
     apiKey: {
-      polygon: process.env.POLYGONSCAN_API_KEY || "",
-      polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
-      polygonAmoy: process.env.POLYGONSCAN_API_KEY || "",
+      arbitrumSepolia: process.env.ARBISCAN_API_KEY || "",
     },
     customChains: [
       {
-        network: "polygonAmoy",
-        chainId: 80002,
+        network: "arbitrumSepolia",
+        chainId: 421614,
         urls: {
-          apiURL: "https://api-amoy.polygonscan.com/api",
-          browserURL: "https://amoy.polygonscan.com",
+          apiURL: "https://api-sepolia.arbiscan.io/api",
+          browserURL: "https://sepolia.arbiscan.io",
         },
       },
     ],

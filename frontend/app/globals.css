@@ -208,4 +208,213 @@ tr:hover td { background: var(--bg); }
   .sidebar-2fr { grid-template-columns: 1fr; }
 }
 
+/* ─── Hero Section — Securitize style ──────────────────────────────────────── */
+.hero-section {
+  position: relative;
+  height: calc(100vh - 60px);
+  min-height: 580px;
+  display: flex;
+  align-items: flex-end;   /* pin content to bottom */
+  overflow: hidden;
+}
+
+/* Two-column bottom grid: stats left, headline right */
+.hero-bottom-grid {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+/* Stats column */
+.hero-stats-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  flex-shrink: 0;
+}
+.hero-stat-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.hero-stat-num {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.hero-stat-label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  line-height: 1.4;
+  white-space: pre-line;
+  max-width: 100px;
+}
+
+/* Headline column */
+.hero-headline-col {
+  flex: 1;
+  text-align: right;
+}
+.hero-big-h1 {
+  font-size: clamp(2.6rem, 7vw, 5.5rem);
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  margin-bottom: 1.5rem;
+}
+.hero-explore-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  padding-bottom: 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.45);
+  transition: border-color 0.15s, gap 0.15s;
+  text-decoration: none;
+}
+.hero-explore-cta:hover {
+  border-bottom-color: #fff;
+  gap: 14px;
+}
+
+/* Hero CTA row (used in bottom CTA banner) */
+.hero-ctas {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Section padding helpers */
+.section-pad    { padding: 4rem 0; }
+.section-pad-lg { padding: 5rem 0; }
+.section-pad-sm { padding: 3rem 0; }
+
+/* ─── Mobile overrides ──────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Hero: stack headline above stats */
+  .hero-bottom-grid {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2rem;
+  }
+  .hero-headline-col {
+    text-align: left;
+    order: -1;       /* headline first on mobile */
+  }
+  .hero-stats-col {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1.25rem 2rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-section {
+    min-height: 88vh;
+  }
+  .hero-big-h1 {
+    font-size: 2.2rem;
+    margin-bottom: 1rem;
+  }
+
+  /* Section padding: shorter on mobile */
+  .section-pad    { padding: 2.5rem 0; }
+  .section-pad-lg { padding: 3rem 0; }
+  .section-pad-sm { padding: 2rem 0; }
+
+  /* Section headings: tighter */
+  .section-heading { font-size: 1.5rem !important; }
+  .section-subhead  { font-size: 14px !important; margin-bottom: 1.75rem !important; }
+
+  /* CTA banner: tighter */
+  .cta-banner-title { font-size: 1.5rem !important; }
+  .cta-banner-sub   { font-size: 14px !important; }
+
+  /* CTA buttons: full width stacked */
+  .hero-ctas {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 0 0.5rem;
+  }
+  .hero-ctas a,
+  .hero-ctas > * { width: 100%; }
+  .hero-ctas .btn { width: 100%; justify-content: center; }
+
+  /* Grid helpers */
+  .grid-4 { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .grid-3 { grid-template-columns: 1fr; }
+  .grid-2 { grid-template-columns: 1fr; gap: 1rem; }
+
+  /* Feature card icon+text: stack vertically */
+  .feature-card { flex-direction: column !important; gap: 10px !important; }
+}
+
+/* ── PARTNERS MARQUEE ─────────────────────────────────────────────────────── */
+
+@keyframes marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.partners-track {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: max-content;
+  animation: marquee-scroll 28s linear infinite;
+  padding: 0.5rem 0;
+}
+
+/* Pause on hover so users can read the labels */
+.partners-track:hover {
+  animation-play-state: paused;
+}
+
+.partner-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--chip-bg, #f3f4f6);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 10px;
+  padding: 0.6rem 1.1rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: transform 0.15s, box-shadow 0.15s;
+  cursor: default;
+}
+
+.partner-chip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+}
+
+.partner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.partner-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--chip-color, var(--text-primary));
+  line-height: 1.2;
+}
+
+.partner-tag {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
 

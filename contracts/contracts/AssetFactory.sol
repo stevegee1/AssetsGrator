@@ -12,13 +12,12 @@ import "./AssetTreasury.sol";
 import "./interfaces/IAssetFactory.sol";
 import "./interfaces/IAssetToken.sol";
 import "./KYCComplianceModule.sol";
+import "./RetailInvestorCap.sol";
+import "./AssetGovernor.sol";
+import "@openzeppelin/contracts/governance/TimelockController.sol";
 
 /// @title AssetFactory
 /// @notice Deploys a full ERC-3643 stack for each new asset.
-///
-/// FHE Note: Actual fee rates are stored in plaintext here. A separate FHEFeeManager
-///           contract (contracts/fhe/FHEFeeManager.sol) can be deployed alongside this
-///           factory to provide encrypted fee storage and auditor permit access.
 contract AssetFactory is IAssetFactory, OwnableUpgradeable {
     using Clones for address;
 
@@ -26,16 +25,20 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
     address public tokenImplementation;
     address public complianceImplementation;
     address public kycModuleImplementation;
+    address public retailCapModuleImplementation;
 
     address public defaultIdentityRegistry;
+    address public feeManager;
 
     // ─── Platform config ──────────────────────────────────────────────────────
-    address public usdc;
+    address public paymentToken;
     address public platformWallet;
 
-    uint256 public platformRevenueBps;
-    uint256 public maintenanceReserveBps;
-    uint256 public exitFeeBps;
+    // ─── Default Governance config ────────────────────────────────────────────
+    uint256 public votingDelay;
+    uint256 public votingPeriod;
+    uint256 public proposalThreshold;
+    uint256 public quorumNumerator;
 
     // ─── Registry ─────────────────────────────────────────────────────────────
     address[] private _allAssets;
@@ -43,10 +46,22 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
     mapping(IAssetToken.AssetCategory => address[]) private _byCategory;
     mapping(address => address)  public assetCompliance;
     mapping(address => address)  public assetTreasury;
+    mapping(address => address)  public assetGovernor;
+    mapping(address => address)  public assetTimelock;
 
     // ─── Events ───────────────────────────────────────────────────────────────
-    event ImplementationsUpdated(address tokenImpl, address complianceImpl, address kycModuleImpl);
-    event DefaultIdentityRegistrySet(address identityRegistry);
+    event ImplementationsUpdated(
+        address indexed tokenImpl,
+        address indexed complianceImpl,
+        address         kycModuleImpl,
+        address         retailCapModuleImpl
+    );
+    event DefaultIdentityRegistrySet(address indexed identityRegistry);
+    event AssetGovernanceDeployed(
+        address indexed token,
+        address indexed governor,
+        address indexed timelock
+    );
 
     // ─── Initializer ──────────────────────────────────────────────────────────
 
@@ -54,28 +69,29 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
         address tokenImpl_,
         address complianceImpl_,
         address kycModuleImpl_,
+        address retailCapModuleImpl_,
         address defaultIdentityRegistry_,
-        address usdc_,
-        address platformWallet_,
-        uint256 platformRevenueBps_,
-        uint256 maintenanceReserveBps_,
-        uint256 exitFeeBps_
+        address feeManager_,
+        address paymentToken_,
+        address platformWallet_
     ) external initializer {
         __Ownable_init();
 
-        tokenImplementation      = tokenImpl_;
-        complianceImplementation = complianceImpl_;
-        kycModuleImplementation  = kycModuleImpl_;
-        defaultIdentityRegistry  = defaultIdentityRegistry_;
-        usdc                     = usdc_;
-        platformWallet           = platformWallet_;
+        tokenImplementation           = tokenImpl_;
+        complianceImplementation      = complianceImpl_;
+        kycModuleImplementation       = kycModuleImpl_;
+        retailCapModuleImplementation = retailCapModuleImpl_;
+        defaultIdentityRegistry       = defaultIdentityRegistry_;
+        feeManager                    = feeManager_;
+        paymentToken                  = paymentToken_;
+        platformWallet                = platformWallet_;
 
-        require(platformRevenueBps_ + maintenanceReserveBps_ <= 5_000, "Factory: combined fees > 50%");
-        platformRevenueBps    = platformRevenueBps_;
-        maintenanceReserveBps = maintenanceReserveBps_;
-        exitFeeBps            = exitFeeBps_;
+        votingDelay                   = 1;
+        votingPeriod                  = 50400; // ~7 days
+        proposalThreshold             = 0;
+        quorumNumerator               = 30;    // 30%
 
-        emit ImplementationsUpdated(tokenImpl_, complianceImpl_, kycModuleImpl_);
+        emit ImplementationsUpdated(tokenImpl_, complianceImpl_, kycModuleImpl_, retailCapModuleImpl_);
         emit DefaultIdentityRegistrySet(defaultIdentityRegistry_);
     }
 
@@ -96,8 +112,13 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
         _initToken(token, identityRegistry, compliance, p);
         ModularCompliance(compliance).bindToken(token);
 
+        // KYC module — verifies investor identity on every transfer
         address kycModule = kycModuleImplementation.clone();
         ModularCompliance(compliance).addModule(kycModule);
+
+        // RetailInvestorCap module — enforces FCA 150-person rule (Article 1(4)(b))
+        address retailCapModule = retailCapModuleImplementation.clone();
+        ModularCompliance(compliance).addModule(retailCapModule);
 
         _deployTreasuryAndRegister(token, compliance, p);
 
@@ -133,17 +154,49 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
         address compliance,
         DeployParams calldata p
     ) internal {
+        // We deploy AssetTreasury setting the factory (address(this)) as temporary owner,
+        // so the factory can configure the governanceContract address before transferring
+        // ownership to msg.sender.
         AssetTreasury treasury = new AssetTreasury(
             token,
-            usdc,
+            paymentToken,
             platformWallet,
-            platformRevenueBps,
-            maintenanceReserveBps,
-            exitFeeBps,
-            msg.sender
+            feeManager,
+            address(this)
         );
 
+        address[] memory emptyAddressArray = new address[](0);
+        TimelockController timelock = new TimelockController(
+            2 days,
+            emptyAddressArray,
+            emptyAddressArray,
+            address(this)
+        );
+
+        AssetGovernor governor = new AssetGovernor(
+            IVotes(token),
+            timelock,
+            votingDelay,
+            votingPeriod,
+            proposalThreshold,
+            quorumNumerator
+        );
+
+        bytes32 proposerRole = keccak256("PROPOSER_ROLE");
+        bytes32 cancellerRole = keccak256("CANCELLER_ROLE");
+        bytes32 executorRole = keccak256("EXECUTOR_ROLE");
+        bytes32 adminRole = keccak256("TIMELOCK_ADMIN_ROLE");
+
+        timelock.grantRole(proposerRole, address(governor));
+        timelock.grantRole(cancellerRole, address(governor));
+        timelock.grantRole(executorRole, address(0));
+        timelock.revokeRole(adminRole, address(this));
+
         AssetToken(token).addAgent(address(treasury));
+        treasury.setGovernanceContract(address(timelock));
+
+        // Transfer final ownerships
+        treasury.transferOwnership(msg.sender);
         OwnableUpgradeable(token).transferOwnership(msg.sender);
         OwnableUpgradeable(compliance).transferOwnership(msg.sender);
 
@@ -152,6 +205,8 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
         _byCategory[p.category].push(token);
         assetCompliance[token] = compliance;
         assetTreasury[token]   = address(treasury);
+        assetGovernor[token]   = address(governor);
+        assetTimelock[token]   = address(timelock);
 
         emit AssetDeployed(
             token,
@@ -161,6 +216,12 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
             p.ipfsCID,
             p.totalSupply,
             p.pricePerUnit
+        );
+
+        emit AssetGovernanceDeployed(
+            token,
+            address(governor),
+            address(timelock)
         );
     }
 
@@ -193,12 +254,14 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
     function setImplementations(
         address tokenImpl_,
         address complianceImpl_,
-        address kycModuleImpl_
+        address kycModuleImpl_,
+        address retailCapModuleImpl_
     ) external onlyOwner {
-        tokenImplementation      = tokenImpl_;
-        complianceImplementation = complianceImpl_;
-        kycModuleImplementation  = kycModuleImpl_;
-        emit ImplementationsUpdated(tokenImpl_, complianceImpl_, kycModuleImpl_);
+        tokenImplementation           = tokenImpl_;
+        complianceImplementation      = complianceImpl_;
+        kycModuleImplementation       = kycModuleImpl_;
+        retailCapModuleImplementation = retailCapModuleImpl_;
+        emit ImplementationsUpdated(tokenImpl_, complianceImpl_, kycModuleImpl_, retailCapModuleImpl_);
     }
 
     function setDefaultIdentityRegistry(address registry) external onlyOwner {
@@ -209,5 +272,22 @@ contract AssetFactory is IAssetFactory, OwnableUpgradeable {
     function setPlatformWallet(address wallet) external onlyOwner {
         require(wallet != address(0), "Factory: zero wallet");
         platformWallet = wallet;
+    }
+
+    function setFeeManager(address feeManager_) external onlyOwner {
+        require(feeManager_ != address(0), "Factory: zero fee manager");
+        feeManager = feeManager_;
+    }
+
+    function setGovernanceParams(
+        uint256 votingDelay_,
+        uint256 votingPeriod_,
+        uint256 proposalThreshold_,
+        uint256 quorumNumerator_
+    ) external onlyOwner {
+        votingDelay = votingDelay_;
+        votingPeriod = votingPeriod_;
+        proposalThreshold = proposalThreshold_;
+        quorumNumerator = quorumNumerator_;
     }
 }
